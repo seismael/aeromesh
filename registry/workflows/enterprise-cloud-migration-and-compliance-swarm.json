@@ -1,0 +1,39 @@
+{
+  "workflow_version": "1.0.0",
+  "identity": {
+    "id": "enterprise-cloud-migration-and-compliance-swarm",
+    "name": "Enterprise Multi-Cloud System Migration & Full Security Compliance Swarm",
+    "description": "Orchestrates a 5-agent swarm performing database query tuning, security audit, FinTech balance reconciliation, AI vector indexing, and AWS EKS cloud deployment.",
+    "schedule": "0 2 * * 0"
+  },
+  "steps": [
+    {
+      "id": "step-1-db-tuner",
+      "agent_id": "postgres-performance-tuner",
+      "intent": "Optimize database schema and analyze slow queries SELECT * FROM users JOIN orders ON users.id = orders.user_id"
+    },
+    {
+      "id": "step-2-security-auditor",
+      "agent_id": "enterprise-security-auditor",
+      "intent": "Perform static analysis, vulnerability scanning, and secret audit across monorepo packages"
+    },
+    {
+      "id": "step-3-fintech-auditor",
+      "agent_id": "fintech-payment-auditor",
+      "intent": "Reconcile Stripe payment payouts against Plaid bank balances for financial compliance",
+      "depends_on": ["step-1-db-tuner"]
+    },
+    {
+      "id": "step-4-ai-vector-architect",
+      "agent_id": "ai-rag-pipeline-architect",
+      "intent": "Generate embeddings for architecture docs and index into Pinecone DB vector catalog",
+      "depends_on": ["step-2-security-auditor"]
+    },
+    {
+      "id": "step-5-multicloud-devops",
+      "agent_id": "multicloud-devops-orchestrator",
+      "intent": "Provision AWS EKS cluster, configure security groups, and deploy production Helm release",
+      "depends_on": ["step-3-fintech-auditor", "step-4-ai-vector-architect"]
+    }
+  ]
+}

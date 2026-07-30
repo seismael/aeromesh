@@ -1,0 +1,56 @@
+{
+  "manifest_version": "3.0.0",
+  "identity": {
+    "id": "enterprise-security-auditor",
+    "name": "Enterprise Repository & Secret Security Auditor",
+    "version": "1.0.0",
+    "author": "AeroMesh Security Group",
+    "license": "Apache-2.0"
+  },
+  "capabilities": {
+    "domain": "Application Security",
+    "sub_domain": "Static Analysis & Secrets Detection",
+    "tags": ["security", "secret-scanning", "sast"],
+    "short_description": "Scans code repositories for exposed API tokens and delegates dependency audit to child agent.",
+    "evaluation_trigger": "Use when reviewing code for hardcoded secrets or vulnerability audits."
+  },
+  "cognitive_runtime": {
+    "driver": "Driver.LangGraph",
+    "persona": "You are a Principal Security Architect & DevSecOps Lead.",
+    "success_criteria": "Must produce zero secret leak report and verified CVE audit.",
+    "memory_policy": "CVM_LRU_PAGING"
+  },
+  "requirements": {
+    "providers": [
+      {
+        "type": "mcp",
+        "id": "github-mcp",
+        "transport": "stdio",
+        "command": "npx",
+        "args": ["-y", "@modelcontextprotocol/server-github"],
+        "required_tools": ["search_code", "list_issues"]
+      },
+      {
+        "type": "credential",
+        "id": "GITHUB_TOKEN",
+        "kind": "bearer_token",
+        "fallback_action": "prompt_user"
+      },
+      {
+        "type": "security",
+        "id": "github-network-firewall",
+        "isolation": "sandbox",
+        "allowed_domains": ["*.github.com", "api.github.com"]
+      },
+      {
+        "type": "sub_agent",
+        "id": "dependency-vulnerability-scanner",
+        "agent_id": "dependency-vulnerability-scanner",
+        "delegation_purpose": "Scan package.json and pyproject.toml for CVE vulnerabilities."
+      }
+    ]
+  },
+  "swarm_topology": {
+    "pattern": "hierarchical"
+  }
+}

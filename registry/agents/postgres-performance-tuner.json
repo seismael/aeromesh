@@ -1,0 +1,49 @@
+{
+  "manifest_version": "3.0.0",
+  "identity": {
+    "id": "postgres-performance-tuner",
+    "name": "PostgreSQL Query Analyzer & Index Tuner",
+    "version": "1.0.0",
+    "author": "AeroMesh Community",
+    "license": "MIT"
+  },
+  "capabilities": {
+    "domain": "Database Engineering",
+    "tags": ["postgres", "sql-optimization", "index-analysis"],
+    "short_description": "Examines slow SQL queries and outputs index creation DDL scripts.",
+    "evaluation_trigger": "Use when database queries are slow. Do NOT use for database backups."
+  },
+  "cognitive_runtime": {
+    "driver": "Driver.LangGraph",
+    "persona": "You are a Principal Database Reliability Engineer.",
+    "success_criteria": "Must produce verified SQL DDL optimization scripts.",
+    "memory_policy": "CVM_LRU_PAGING"
+  },
+  "requirements": {
+    "providers": [
+      {
+        "type": "mcp",
+        "id": "postgres-mcp",
+        "transport": "stdio",
+        "command": "npx",
+        "args": ["-y", "@modelcontextprotocol/server-postgres"],
+        "required_tools": ["execute_query", "explain_query"]
+      },
+      {
+        "type": "credential",
+        "id": "DB_CONNECT_STRING",
+        "kind": "connection_string",
+        "fallback_action": "prompt_user"
+      },
+      {
+        "type": "security",
+        "id": "network-firewall",
+        "isolation": "sandbox",
+        "allowed_domains": ["*.postgresql.org", "github.com"]
+      }
+    ]
+  },
+  "swarm_topology": {
+    "pattern": "hierarchical"
+  }
+}

@@ -1,0 +1,58 @@
+{
+  "manifest_version": "3.0.0",
+  "identity": {
+    "id": "multicloud-devops-orchestrator",
+    "name": "Multi-Cloud Kubernetes & Terraform Orchestrator",
+    "version": "1.0.0",
+    "author": "AeroMesh DevOps Guild",
+    "license": "Apache-2.0"
+  },
+  "capabilities": {
+    "domain": "DevOps & Cloud Infrastructure",
+    "sub_domain": "Kubernetes & Cloud Provisioning",
+    "tags": ["aws", "k8s", "terraform", "helm"],
+    "short_description": "Provisions AWS EKS clusters and deploys Kubernetes Helm charts.",
+    "evaluation_trigger": "Use when provisioning cloud infrastructure or deploying K8s Helm charts."
+  },
+  "cognitive_runtime": {
+    "driver": "Driver.LangGraph",
+    "persona": "You are a Principal Cloud DevOps Engineer & Infrastructure Lead.",
+    "success_criteria": "Must produce verified terraform plan and helm deployment status.",
+    "memory_policy": "CVM_LRU_PAGING"
+  },
+  "requirements": {
+    "providers": [
+      {
+        "type": "mcp",
+        "id": "kubernetes-mcp",
+        "transport": "stdio",
+        "command": "npx",
+        "args": ["-y", "@modelcontextprotocol/server-kubernetes"]
+      },
+      {
+        "type": "credential",
+        "id": "AWS_ACCESS_KEY_ID",
+        "kind": "access_key"
+      },
+      {
+        "type": "credential",
+        "id": "AWS_SECRET_ACCESS_KEY",
+        "kind": "secret_key"
+      },
+      {
+        "type": "credential",
+        "id": "KUBECONFIG_DATA",
+        "kind": "kubeconfig"
+      },
+      {
+        "type": "security",
+        "id": "cloud-firewall",
+        "isolation": "sandbox",
+        "allowed_domains": ["*.amazonaws.com", "*.k8s.io", "10.0.0.0/16"]
+      }
+    ]
+  },
+  "swarm_topology": {
+    "pattern": "hierarchical"
+  }
+}

@@ -1,0 +1,53 @@
+{
+  "manifest_version": "3.0.0",
+  "identity": {
+    "id": "ai-rag-pipeline-architect",
+    "name": "AI RAG Vector Indexing & Embedding Architect",
+    "version": "1.0.0",
+    "author": "AeroMesh AI Engineering Guild",
+    "license": "MIT"
+  },
+  "capabilities": {
+    "domain": "Artificial Intelligence",
+    "sub_domain": "Vector Database & Embedding Pipelines",
+    "tags": ["openai", "pinecone", "rag", "embeddings"],
+    "short_description": "Generates text embeddings via OpenAI and indexes vectors into Pinecone DB.",
+    "evaluation_trigger": "Use when building vector database RAG indexes or text embeddings."
+  },
+  "cognitive_runtime": {
+    "driver": "Driver.LangGraph",
+    "persona": "You are a Principal AI System Architect & Vector Search Lead.",
+    "success_criteria": "Must produce verified Pinecone vector index stats.",
+    "memory_policy": "CVM_LRU_PAGING"
+  },
+  "requirements": {
+    "providers": [
+      {
+        "type": "mcp",
+        "id": "openai-mcp",
+        "transport": "stdio",
+        "command": "npx",
+        "args": ["-y", "@modelcontextprotocol/server-openai"]
+      },
+      {
+        "type": "credential",
+        "id": "OPENAI_API_KEY",
+        "kind": "api_key"
+      },
+      {
+        "type": "credential",
+        "id": "PINECONE_API_KEY",
+        "kind": "api_key"
+      },
+      {
+        "type": "security",
+        "id": "ai-firewall",
+        "isolation": "sandbox",
+        "allowed_domains": ["api.openai.com", "*.pinecone.io"]
+      }
+    ]
+  },
+  "swarm_topology": {
+    "pattern": "hierarchical"
+  }
+}

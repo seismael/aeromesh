@@ -1,0 +1,28 @@
+{
+  "workflow_version": "1.0.0",
+  "identity": {
+    "id": "daily-enterprise-audit-workflow",
+    "name": "Daily Enterprise Infrastructure & Security Audit Workflow",
+    "description": "Performs daily database performance tuning, repository secret audits, and EKS cloud infrastructure checks.",
+    "schedule": "0 7 * * 1-5"
+  },
+  "steps": [
+    {
+      "id": "step-1-db-tuner",
+      "agent_id": "postgres-performance-tuner",
+      "intent": "Analyze slow query SELECT * FROM orders WHERE user_id = 42"
+    },
+    {
+      "id": "step-2-sec-auditor",
+      "agent_id": "enterprise-security-auditor",
+      "intent": "Audit repository aeromesh/aero for exposed secrets and dependencies",
+      "depends_on": ["step-1-db-tuner"]
+    },
+    {
+      "id": "step-3-cloud-devops",
+      "agent_id": "multicloud-devops-orchestrator",
+      "intent": "Verify EKS cluster health and Helm deployments",
+      "depends_on": ["step-2-sec-auditor"]
+    }
+  ]
+}

@@ -1,0 +1,53 @@
+{
+  "manifest_version": "3.0.0",
+  "identity": {
+    "id": "fintech-payment-auditor",
+    "name": "FinTech Stripe & Plaid Payment Security Auditor",
+    "version": "1.0.0",
+    "author": "AeroMesh FinTech Security Group",
+    "license": "MIT"
+  },
+  "capabilities": {
+    "domain": "Financial Services",
+    "sub_domain": "Payment Gateways & Ledger Audit",
+    "tags": ["stripe", "plaid", "fintech", "payment-audit"],
+    "short_description": "Audits Stripe payout transactions and verifies Plaid bank account balances.",
+    "evaluation_trigger": "Use when auditing payment transactions or verifying bank balances."
+  },
+  "cognitive_runtime": {
+    "driver": "Driver.LangGraph",
+    "persona": "You are a Senior FinTech Compliance & Financial Security Auditor.",
+    "success_criteria": "Must produce verified ledger reconciliation audit report.",
+    "memory_policy": "CVM_LRU_PAGING"
+  },
+  "requirements": {
+    "providers": [
+      {
+        "type": "mcp",
+        "id": "stripe-mcp",
+        "transport": "stdio",
+        "command": "npx",
+        "args": ["-y", "@modelcontextprotocol/server-stripe"]
+      },
+      {
+        "type": "credential",
+        "id": "STRIPE_SECRET_KEY",
+        "kind": "bearer_token"
+      },
+      {
+        "type": "credential",
+        "id": "PLAID_CLIENT_SECRET",
+        "kind": "api_key"
+      },
+      {
+        "type": "security",
+        "id": "fintech-firewall",
+        "isolation": "sandbox",
+        "allowed_domains": ["api.stripe.com:443", "production.plaid.com:443"]
+      }
+    ]
+  },
+  "swarm_topology": {
+    "pattern": "hierarchical"
+  }
+}
