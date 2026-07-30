@@ -133,3 +133,23 @@ class AeroTerminalUI:
         """Renders diagnostic spans. Accepts tracer object or summary dict."""
         AeroTerminalUI.render_diagnostics_summary(diagnostics)
 
+    @staticmethod
+    def render_requirements_checklist(checklist: Any) -> None:
+        """Renders an upfront requirement checklist table for a decomposed user goal."""
+        table = Table(
+            title=f"🎯 Goal Requirement Checklist & Capability Plan\n[dim]{checklist.goal}[/dim]",
+            show_header=True,
+            header_style="bold cyan",
+        )
+        table.add_column("Category", style="yellow")
+        table.add_column("Details", style="green")
+
+        mode_str = "JIT Synthesized Agent" if checklist.is_jit_synthesized else "Discovered Registry Swarm"
+        table.add_row("Execution Mode", mode_str)
+        table.add_row("Agents", ", ".join(checklist.matched_agent_ids))
+
+        req_keys = [r.id for r in checklist.required_credentials]
+        table.add_row("Required Credentials", ", ".join(req_keys) if req_keys else "None (Public API / Offline)")
+
+        console.print(table)
+

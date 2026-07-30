@@ -8,7 +8,7 @@ from typing import Dict, Any, List
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from aero.domain.errors import AeroMeshDomainError, ErrorCode, ExitCode
-from aero.domain.paths import get_aeromesh_agents_dir, get_aeromesh_home
+from aero.domain.paths import get_aeromesh_agents_dir, get_aeromesh_home, resolve_agent_manifest_path
 from aero.services.runner import AeroAgentRunnerService
 
 SCHEMA_PATH = os.path.abspath(
@@ -106,27 +106,21 @@ class AeroWorkflowEngine:
         return data
 
     def _resolve_manifest_path(self, step: Dict[str, Any]) -> str:
-        manifest_path = step.get("manifest")
-        if not manifest_path and step.get("agent_id"):
-            agent_id = step["agent_id"]
-            # Search local store
-            local_path = get_aeromesh_agents_dir() / f"{agent_id}.json"
-            if local_path.exists():
-                return str(local_path)
-            
-            # Search workspace registry
-            registry_path = os.path.abspath(
-                os.path.join(os.path.dirname(__file__), "..", "..", "..", "..", "..", "registry", "agents", f"{agent_id}.json")
-            )
-            if os.path.exists(registry_path):
-                return registry_path
-
+        target = step.get("manifest") or step.get("agent_id")
+        if not target:
             raise AeroMeshDomainError(
-                f"Workflow step '{step['id']}' agent ID '{agent_id}' not found in local store or registry.",
+                f"Workflow step '{step.get('id')}' missing both 'manifest' and 'agent_id' declarations.",
+                ErrorCode.AMX_ERR_SCHEMA_VIOLATION,
+                ExitCode.SCHEMA_VIOLATION,
+            )
+        resolved = resolve_agent_manifest_path(target)
+        if not resolved:
+            raise AeroMeshDomainError(
+                f"Workflow step '{step['id']}' target '{target}' not found in local store or registry.",
                 ErrorCode.AMX_ERR_DISCOVERY_NO_MATCH,
                 ExitCode.DISCOVERY_NO_MATCH,
             )
-        return manifest_path
+        return str(resolved)
 
     async def execute_workflow_async(
         self,

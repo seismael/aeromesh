@@ -20,7 +20,8 @@ def workspace_scratch_dir():
     os.makedirs(scratch_dir, exist_ok=True)
     yield scratch_dir
 
-def test_orchestrator_resilience_non_existent_target():
+def test_orchestrator_resilience_non_existent_target(monkeypatch):
+    monkeypatch.setenv("DEEPSEEK_API_KEY", "sk-deepseek-test-mock-key")
     orchestrator = AeroMasterOrchestrator()
     with pytest.raises(AeroMeshDomainError) as exc:
         orchestrator.dispatch("non_existent_agent_9999.json", intent="Do something", non_interactive=True)

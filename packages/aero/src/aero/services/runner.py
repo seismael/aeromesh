@@ -1,7 +1,7 @@
 """AERO Agent Runner Orchestration Service."""
 
 import time
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 from aero.infrastructure.parser import ManifestParser
 from aero.infrastructure.vault import ZeroTrustVaultResolver
 from aero.infrastructure.driver import LangGraphExecutionDriver
@@ -16,16 +16,20 @@ class AeroAgentRunnerService:
 
     def run_manifest_file(
         self,
-        manifest_path: str,
+        manifest_path: Optional[str],
         user_intent: str,
         env_overrides: Dict[str, str] = None,
         non_interactive: bool = False,
         enable_diagnostics: bool = False,
+        manifest_object: Optional[Any] = None,
     ) -> Dict[str, Any]:
         tracer = AeroDiagnosticTracer(enabled=enable_diagnostics)
 
         t0 = time.time()
-        manifest = self.parser.parse_file(manifest_path)
+        if manifest_object:
+            manifest = manifest_object
+        else:
+            manifest = self.parser.parse_file(manifest_path)
         if tracer.enabled:
             tracer.record_span(
                 event_type="PARSE_MANIFEST",

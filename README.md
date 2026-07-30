@@ -5,7 +5,7 @@
 [![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](packages/aero)
 [![GitHub Repository](https://img.shields.io/badge/GitHub-seismael%2Faeromesh-black.svg?logo=github)](https://github.com/seismael/aeromesh)
 [![Contributing](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](CONTRIBUTING.md)
-[![Tests](https://img.shields.io/badge/tests-47_passed-brightgreen.svg)](packages/aero/tests)
+[![Tests](https://img.shields.io/badge/tests-59_passed-brightgreen.svg)](packages/aero/tests)
 
 **AeroMesh** is an open-source, enterprise-grade autonomous AI agent ecosystem built on the **Declarative Agent Manifest (DAM v3.0)** standard. Powered by **Aero Engine (`amx`)**, it decouples agent capabilities from proprietary vendor lock-in, enabling deterministic pipelines, reusable mesh workflows, and OS-agnostic execution.
 
@@ -13,11 +13,12 @@
 
 ## ✨ Key Features
 
-- **🏛️ Unified Master Orchestrator (`AeroMasterOrchestrator`)**: Auto-detects single agents, linear pipelines, and complex DAG workflows, dispatching to optimal engines with zero halts.
+- **🏛️ Unified Master Orchestrator (`AeroMasterOrchestrator`)**: Auto-detects single agents, linear pipelines, DAG workflows, and raw natural language goals, dispatching to optimal engines with zero halts.
+- **🛠️ Goal Decomposition & JIT Agent Synthesizer**: Accepts raw natural language goals without pre-authored manifests, decomposes required tools/credentials, and synthesizes valid DAM v3.0 agent manifests on-the-fly.
+- **🔍 Dual Registry Resolution**: Resolves agent ID shortnames across local user AppData (`~/.aeromesh/agents/`) and workspace registry (`registry/agents/`).
 - **⚡ Non-Blocking Async Concurrency & Worker Pools**: Multi-thread worker pools dispatch independent DAG steps concurrently while dependent steps await prerequisite events asynchronously.
-- **🎯 Deterministic Guaranteed Agent Pipeline (DGAP)**: Eliminates non-deterministic LLM flow gaps by enforcing contract-validated intermediate output hand-offs.
-- **🔄 Declarative Mesh Workflows (DWM v1.0)**: Define reusable multi-agent DAG topologies (`workflow.json`) with native crontab scheduling (`0 8 * * 1-5`).
-- **🛫 Interactive Pre-Flight Engine**: Auto-detects LLM provider keys, verifies agent feasibility, and negotiates credentials interactively before execution — zero mid-task failures.
+- **🔄 Topological DAG Cycle Validation**: Kahn's algorithm topological sort prevents circular step loops and deadlocks in multi-agent workflows.
+- **🛫 Interactive Pre-Flight Engine**: Auto-detects LLM provider keys, verifies agent feasibility, and presents upfront requirement checklists interactively before execution — zero mid-task failures.
 - **🔑 Zero-Trust Explicit User Key Permission**: Discovered environment credentials require explicit human user approval before execution (`[1] Approve`, `[2] New Key`, `[3] Reject`).
 - **🌐 OS-Agnostic AppData Home (`~/.aeromesh/`)**: Dynamic AppData path resolution across Windows (`%LOCALAPPDATA%\AeroMesh`), macOS (`~/Library/Application Support/AeroMesh`), Linux (`$XDG_DATA_HOME/aeromesh`), or `~/.aeromesh`.
 - **📊 Real-Time OpenTelemetry Diagnostics (`--diagnostics`)**: Structured diagnostic event tracing with peak memory (RAM in MB) and latency tracking.

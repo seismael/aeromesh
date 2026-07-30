@@ -128,7 +128,13 @@ The `AeroInteractivePreflightEngine` (`packages/aero/src/aero/services/preflight
 2. **Agent Capability Feasibility Audit**: Verifies that a manifest has valid identity, providers, or capabilities before credential negotiation begins.
 3. **Dynamic Credential Negotiation with Fallback**: For each `CapabilityProviderRequirement`, the engine presents the requirement to the user for explicit approval, replacement, or rejection. Rejected requirements trigger fallback resolution strategies.
 
-All prompt functions are injectable via constructor (`provider_prompt_fn`, `requirement_prompt_fn`) for deterministic TDD testing with mock implementations.
+### 5.4 Goal Decomposition, JIT Synthesis & Dual Registry Resolution (`AeroGoalDecompositionEngine`)
+The `AeroGoalDecompositionEngine` (`packages/aero/src/aero/services/decomposition.py`) enables fully generic, dynamic, and agnostic goal executions:
+
+1. **OS-Agnostic Dual Registry Resolution**: `resolve_agent_manifest_path()` in `aero.domain.paths` searches both local user AppData (`~/.aeromesh/agents/`) and workspace repository registry (`registry/agents/`) to resolve shortname agent IDs seamlessly.
+2. **Upfront Requirement Checklist**: Decomposes raw natural language intents, extracts required capability provider credentials, and presents a structured Rich checklist table (`render_requirements_checklist`) before execution.
+3. **Just-In-Time (JIT) Agent Manifest Synthesis**: When no pre-authored agent manifest matches a user's goal in the registry, `synthesize_jit_manifest()` constructs a valid DAM v3.0 `AgentManifest` JSON on-the-fly.
+4. **Degraded Offline Fallback Matrix**: If a user rejects a required credential during interactive negotiation, `negotiate_fallback()` constructs an offline diagnostic fallback execution plan bypassing the rejected credential.
 
 ---
 
@@ -138,6 +144,7 @@ The `AeroTerminalUI` static class (`packages/aero/src/aero/presentation/ui.py`) 
 
 - **`render_agent_banner`**: Displays agent identity panel with ID, domain, and driver.
 - **`render_diagnostics_summary`**: Renders OTel span table with latency and memory metrics. Accepts both `AeroDiagnosticTracer` objects and raw summary dicts.
+- **`render_requirements_checklist`**: Renders upfront goal requirement checklists and execution plans.
 - **`render_result` / `render_error`**: Verified execution result and domain error presentation.
 - **`prompt_provider_selection`**: Interactive LLM provider setup with numbered selection.
 - **`prompt_credential_approval` / `prompt_missing_credential`**: Zero-trust credential approval and prompting.

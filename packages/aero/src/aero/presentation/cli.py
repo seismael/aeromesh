@@ -8,7 +8,7 @@ import argparse
 from typing import List
 
 from aero.domain.errors import AeroMeshDomainError
-from aero.domain.paths import get_aeromesh_agents_dir
+from aero.domain.paths import get_aeromesh_agents_dir, resolve_agent_manifest_path
 from aero.services.runner import AeroAgentRunnerService
 from aero.services.pipeline import DeterministicPipelineOrchestrator
 from aero.services.workflow import AeroWorkflowEngine
@@ -162,11 +162,14 @@ def main(args: List[str] = None) -> int:
 
     if parsed.command == "run":
         try:
-            target_manifest_path = parsed.manifest
-            if not os.path.exists(target_manifest_path):
-                local_store_path = get_aeromesh_agents_dir() / f"{parsed.manifest}.json"
-                if local_store_path.exists():
-                    target_manifest_path = str(local_store_path)
+            resolved = resolve_agent_manifest_path(parsed.manifest)
+            if not resolved:
+                raise AeroMeshDomainError(
+                    f"Agent file or manifest ID '{parsed.manifest}' not found in local store or registry.",
+                    ErrorCode.AMX_ERR_DISCOVERY_NO_MATCH,
+                    ExitCode.DISCOVERY_NO_MATCH,
+                )
+            target_manifest_path = str(resolved)
 
             res = runner.run_manifest_file(
                 target_manifest_path,
