@@ -145,8 +145,12 @@ The `McpStdioDriver` (`packages/aero/src/aero/infrastructure/mcp.py`) implements
 The `CognitiveProviderAdapter` (`packages/aero/src/aero/infrastructure/providers.py`) binds resolved credentials to live LLM reasoning endpoints:
 
 1. **Multi-Cloud Provider Resolution**: Resolves and manages API credentials for DeepSeek (`deepseek-chat`), Anthropic (`claude-3-5-sonnet`), OpenAI (`gpt-4o`), and Gemini (`gemini-2.5-flash`).
-2. **Zero-Dependency Transport**: Issues HTTP REST prompt completions via standard library `urllib.request` without external vendor SDK dependencies.
-3. **Resilient Offline Fallback**: Automatically detects mock test keys or offline environments (`AEROMESH_LIVE_API`), providing structured completions to maintain deterministic execution contracts.
+### 5.7 Network Proxy Sandbox Firewall (`NetworkSandboxFirewall`)
+The `NetworkSandboxFirewall` (`packages/aero/src/aero/infrastructure/sandbox.py`) enforces domain security allowlisting declared in DAM v3.0 agent manifests (`allowed_domains`):
+
+1. **Domain Hostname Normalization**: Normalizes incoming URLs and target domain strings, stripping schemes (`http://`, `https://`), ports (`:5432`), and path suffixes.
+2. **Wildcard & Sub-Domain Policy Matching**: Validates exact hostnames (`api.stripe.com`) as well as wildcard domain patterns (`*.postgresql.org`).
+3. **Security Boundary Interception**: Intercepts unauthorized outbound network attempts, raising `AeroMeshDomainError` with machine-readable `AMX_ERR_DOMAIN_BLOCKED` (`ExitCode.DOMAIN_BLOCKED`) to block data exfiltration.
 
 ---
 

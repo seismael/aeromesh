@@ -7,6 +7,7 @@ from aero.domain.models import AgentManifest, CapabilityProviderRequirement
 from aero.infrastructure.diagnostics import AeroDiagnosticTracer
 from aero.infrastructure.mcp import McpStdioDriver, McpToolResult
 from aero.infrastructure.providers import CognitiveProviderAdapter
+from aero.infrastructure.sandbox import NetworkSandboxFirewall
 
 class LangGraphExecutionDriver:
     """Executes DAM v3.0 manifests via LangGraph StateGraph engine and live MCP stdio drivers."""
@@ -18,6 +19,13 @@ class LangGraphExecutionDriver:
         self.persona = manifest.cognitive_runtime.persona
         self.success_criteria = manifest.cognitive_runtime.success_criteria
         self.provider_adapter = CognitiveProviderAdapter(credentials=credentials)
+        
+        allowed_domains = []
+        for p in manifest.providers:
+            if p.allowed_domains:
+                allowed_domains.extend(p.allowed_domains)
+        self.sandbox = NetworkSandboxFirewall(allowed_domains=allowed_domains)
+
         self.mcp_drivers: List[McpStdioDriver] = []
         self._init_mcp_drivers()
 
