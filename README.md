@@ -4,6 +4,7 @@
 [![DAM v3.0 Standard](https://img.shields.io/badge/Schema-DAM_v3.0-green.svg)](schemas/declarative-agent.schema.json)
 [![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](packages/aero)
 [![GitHub Repository](https://img.shields.io/badge/GitHub-seismael%2Faeromesh-black.svg?logo=github)](https://github.com/seismael/aeromesh)
+[![Contributing](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](CONTRIBUTING.md)
 
 **AeroMesh** is an open-source, enterprise-grade autonomous AI agent ecosystem built on the **Declarative Agent Manifest (DAM v3.0)** standard. Powered by **Aero Engine (`amx`)**, it decouples agent capabilities from proprietary vendor lock-in, enabling deterministic pipelines, reusable mesh workflows, and OS-agnostic execution.
 
@@ -30,7 +31,10 @@ aeromesh/
 ├── schemas/                    <-- JSON Schemas (DAM v3.0 & DWM v1.0)
 ├── packages/                   <-- Enterprise Monorepo Packages
 │   └── aero/                   <-- Aero Standalone Agent Engine (`aero` / `amx`)
-└── registry/                   <-- Git-as-a-Registry Agent Templates
+├── registry/                   <-- Git-as-a-Registry Agent Templates
+├── CONTRIBUTING.md             <-- Open-Source Contribution & Development Guide
+├── LICENSE                     <-- Apache License 2.0
+└── README.md                   <-- Master Ecosystem Architecture & Quickstart Guide
 ```
 
 ---
@@ -90,6 +94,14 @@ amx install custom_agent.json
 # Share agent to public registry (Generates SHA-256 PR payload)
 amx share custom_agent.json
 ```
+
+---
+
+## 🤝 Contributing
+
+We welcome contributions of all kinds! Whether you want to add new declarative agents, build reusable mesh workflows, or enhance core engine drivers:
+- Read our [**Contributing Guide (`CONTRIBUTING.md`)**](CONTRIBUTING.md) for full development setup and Pull Request guidelines.
+- Submit bug reports or feature requests via GitHub Issues.
 
 ---
 
