@@ -30,7 +30,7 @@ def test_stage_2_run_postgres_performance_tuner_scenario(monkeypatch, capsys):
     assert exit_code == 0
     captured = capsys.readouterr()
     assert "postgres-performance-tuner" in captured.out
-    assert "Verified Execution Result" in captured.out
+    assert "Result:" in captured.out
 
 # Stage 3: Complex Multi-Agent Swarm Enterprise Security Auditor Execution
 def test_stage_3_run_enterprise_security_auditor_scenario(monkeypatch, capsys):
@@ -43,4 +43,4 @@ def test_stage_3_run_enterprise_security_auditor_scenario(monkeypatch, capsys):
     assert exit_code == 0
     captured = capsys.readouterr()
     assert "enterprise-security-auditor" in captured.out
-    assert "Verified Execution Result" in captured.out
+    assert "Result:" in captured.out

@@ -34,6 +34,7 @@ coverage.xml
 *.cover
 *.py:gcov
 .hypothesis/
+.test_scratch/
 
 # Node / JS
 node_modules/

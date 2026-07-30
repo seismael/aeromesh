@@ -120,3 +120,25 @@ The `AeroMasterOrchestrator` service (`packages/aero/src/aero/services/orchestra
 
 ### 5.2 Non-Blocking Asynchronous Concurrency Engine
 `AeroWorkflowEngine.execute_workflow_async` leverages Python `asyncio` event loops and a configurable `ThreadPoolExecutor` worker pool to execute independent steps in parallel without blocking main queues. Dependent steps wait asynchronously (`await completed_events[dep_id].wait()`) for prerequisite steps to complete.
+
+### 5.3 Interactive Pre-Flight Engine (`AeroInteractivePreflightEngine`)
+The `AeroInteractivePreflightEngine` (`packages/aero/src/aero/services/preflight.py`) ensures zero mid-execution failures through pre-flight validation:
+
+1. **Default LLM Provider Selection**: Auto-detects provider API keys from environment variables (`DEEPSEEK_API_KEY`, `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `GEMINI_API_KEY`). Falls back to interactive terminal prompting in human sessions. Persists selection to `~/.aeromesh/config.json`.
+2. **Agent Capability Feasibility Audit**: Verifies that a manifest has valid identity, providers, or capabilities before credential negotiation begins.
+3. **Dynamic Credential Negotiation with Fallback**: For each `CapabilityProviderRequirement`, the engine presents the requirement to the user for explicit approval, replacement, or rejection. Rejected requirements trigger fallback resolution strategies.
+
+All prompt functions are injectable via constructor (`provider_prompt_fn`, `requirement_prompt_fn`) for deterministic TDD testing with mock implementations.
+
+---
+
+## 6. Presentation Layer (`AeroTerminalUI`)
+
+The `AeroTerminalUI` static class (`packages/aero/src/aero/presentation/ui.py`) provides Rich-powered terminal rendering:
+
+- **`render_agent_banner`**: Displays agent identity panel with ID, domain, and driver.
+- **`render_diagnostics_summary`**: Renders OTel span table with latency and memory metrics. Accepts both `AeroDiagnosticTracer` objects and raw summary dicts.
+- **`render_result` / `render_error`**: Verified execution result and domain error presentation.
+- **`prompt_provider_selection`**: Interactive LLM provider setup with numbered selection.
+- **`prompt_credential_approval` / `prompt_missing_credential`**: Zero-trust credential approval and prompting.
+

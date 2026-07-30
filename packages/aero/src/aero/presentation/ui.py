@@ -2,7 +2,7 @@
 
 import sys
 import getpass
-from typing import Dict, Any, List, Tuple
+from typing import Dict, Any, List, Tuple, Optional
 from rich.console import Console
 from rich.panel import Panel
 from rich.table import Table
@@ -59,124 +59,77 @@ class AeroTerminalUI:
         )
         console.print(panel)
 
-        if input_fn:
-            choice = input_fn(f"Select option [1-3] (Default 1): ")
-        else:
-            choice = input("Select option [1-3] (Default 1): ")
-
-        choice = choice.strip() or "1"
-
-        if choice == "1":
-            console.print(f"[bold green]✅ Approved using existing key '{key_id}'.[/bold green]")
-            return (existing_val, True)
+        fn = input_fn or input
+        choice = fn("Select option [1/2/3] (default 1): ").strip()
+        if choice in ("", "1"):
+            return existing_val, True
         elif choice == "2":
-            if input_fn:
-                new_val = input_fn(f"Enter new secret value for '{key_id}': ")
-            else:
-                try:
-                    new_val = getpass.getpass(f"Enter new secret value for '{key_id}': ")
-                except Exception:
-                    new_val = input(f"Enter new secret value for '{key_id}': ")
-            if new_val and new_val.strip():
-                console.print(f"[bold green]✅ Set new key for '{key_id}'.[/bold green]")
-                return (new_val.strip(), True)
-            return ("", False)
+            new_key = fn(f"Enter secret key for {key_id}: ").strip()
+            return new_key, bool(new_key)
         else:
-            console.print(f"[bold red]❌ Key '{key_id}' rejected by user.[/bold red]")
-            return ("", False)
+            return "", False
 
     @staticmethod
-    def prompt_missing_credential(key_id: str, kind: str = "credential", prompt_fn=None) -> str:
-        """Prompts human user interactively for a missing vault requirement."""
-        panel = Panel(
-            f"[bold yellow]🔑 Missing Required Credential:[/bold yellow] [bold white]{key_id}[/bold white] (Kind: {kind})\n"
-            f"[dim]Please enter the value to continue execution and save securely to ~/.aeromesh/credentials.json.[/dim]",
-            title="[bold yellow]Interactive Vault Resolution[/bold yellow]",
-            border_style="yellow",
-            expand=False
-        )
+    def prompt_provider_selection(providers: List[Dict[str, str]], input_fn=None) -> Tuple[str, str]:
+        """Prompts human user to select default LLM model provider and enter API key."""
+        lines = ["[bold yellow]⚙️ No Default Model Provider Configured.[/bold yellow]\n", "Select a Model Provider:"]
+        for idx, prov in enumerate(providers, 1):
+            lines.append(f"  [bold green][{idx}][/bold green] {prov['name']} ({prov['env_var']})")
+
+        panel = Panel("\n".join(lines), title="[bold cyan]LLM Model Provider Selection[/bold cyan]", border_style="cyan", expand=False)
         console.print(panel)
 
-        if prompt_fn:
-            val = prompt_fn(f"Enter secret for '{key_id}': ")
+        fn = input_fn or input
+        choice_str = fn("Select provider number (default 1): ").strip()
+        choice_idx = int(choice_str) - 1 if choice_str.isdigit() and 1 <= int(choice_str) <= len(providers) else 0
+
+        selected_prov = providers[choice_idx]
+        console.print(f"[bold green]Selected Provider:[/bold green] {selected_prov['name']}")
+        api_key = fn(f"Enter API Key for {selected_prov['name']}: ").strip()
+
+        return selected_prov["id"], api_key
+
+    @staticmethod
+    def render_diagnostics_summary(summary: Any) -> None:
+        """Renders diagnostic spans from either an AeroDiagnosticTracer or a summary dict."""
+        # Support both tracer objects and raw summary dicts from get_summary()
+        if isinstance(summary, dict):
+            spans = summary.get("spans", [])
+        elif hasattr(summary, "get_spans"):
+            spans = summary.get_spans()
+        elif hasattr(summary, "spans"):
+            spans = [s if isinstance(s, dict) else {"event_type": str(s)} for s in summary.spans]
         else:
-            try:
-                val = getpass.getpass(f"Enter secret for '{key_id}': ")
-            except Exception:
-                val = input(f"Enter secret for '{key_id}': ")
+            spans = []
 
-        if val and val.strip():
-            console.print(f"[bold green]✅ Credential '{key_id}' acquired and saved to vault.[/bold green]")
-            return val.strip()
+        table = Table(title="📊 Aero Engine Diagnostic Tracing Spans", show_header=True, header_style="bold magenta")
+        table.add_column("Span ID", style="cyan")
+        table.add_column("Component", style="green")
+        table.add_column("Latency (ms)", justify="right", style="yellow")
+        table.add_column("RAM (MB)", justify="right", style="magenta")
 
-        return ""
+        for s in spans:
+            table.add_row(
+                s.get("event_type", "SPAN"),
+                s.get("component", "Core"),
+                f"{s.get('duration_ms', 0):.2f}",
+                f"{s.get('memory_mb', 0):.2f}"
+            )
+        console.print(table)
+        console.print(f"[bold cyan]Total Spans: {len(spans)}[/bold cyan]")
+
+    @staticmethod
+    def render_result(result: str) -> None:
+        """Renders a verified execution result."""
+        console.print(f"[bold green]✅ Result:[/bold green] {result}")
+
+    @staticmethod
+    def render_error(error: str) -> None:
+        """Renders a domain error message."""
+        console.print(f"[bold red]❌ Error:[/bold red] {error}")
 
     @staticmethod
     def render_diagnostics(diagnostics: Any) -> None:
-        table = Table(title="🔍 Real-Time OTel Diagnostic Traces & Performance Metrics", header_style="bold magenta")
-        table.add_column("Span ID", style="dim")
-        table.add_column("Event Type", style="cyan")
-        table.add_column("Component", style="green")
-        table.add_column("Duration", style="yellow")
-        table.add_column("Memory (MB)", style="blue")
+        """Renders diagnostic spans. Accepts tracer object or summary dict."""
+        AeroTerminalUI.render_diagnostics_summary(diagnostics)
 
-        spans = []
-        summary = {}
-
-        if isinstance(diagnostics, dict):
-            spans = diagnostics.get("spans", [])
-            summary = {
-                "total_spans": diagnostics.get("total_spans", len(spans)),
-                "total_duration_ms": diagnostics.get("total_duration_ms", 0.0),
-                "peak_memory_mb": diagnostics.get("peak_memory_mb", 0.0),
-            }
-            for span in spans:
-                table.add_row(
-                    str(span.get("span_id", "")),
-                    str(span.get("event_type", "")),
-                    str(span.get("component", "")),
-                    f"{span.get('duration_ms', 0.0)} ms",
-                    f"{span.get('memory_mb', 0.0)} MB"
-                )
-        else:
-            spans = getattr(diagnostics, "spans", [])
-            summary = diagnostics.get_summary()
-            for span in spans:
-                table.add_row(
-                    span.span_id,
-                    span.event_type,
-                    span.component,
-                    f"{span.duration_ms} ms",
-                    f"{span.memory_mb} MB"
-                )
-
-        console.print(table)
-        summary_panel = Panel(
-            f"[bold white]Total Spans:[/bold white] {summary['total_spans']} | "
-            f"[bold white]Total Latency:[/bold white] {summary['total_duration_ms']} ms | "
-            f"[bold white]Peak Memory:[/bold white] {summary['peak_memory_mb']} MB",
-            title="[bold green]📊 Performance SLA Summary[/bold green]",
-            border_style="green",
-            expand=False
-        )
-        console.print(summary_panel)
-
-    @staticmethod
-    def render_result(result_text: str) -> None:
-        panel = Panel(
-            result_text,
-            title="[bold cyan]✨ Verified Execution Result[/bold cyan]",
-            border_style="bright_blue",
-            expand=False
-        )
-        console.print(panel)
-
-    @staticmethod
-    def render_error(error_text: str) -> None:
-        panel = Panel(
-            f"[bold red]{error_text}[/bold red]",
-            title="[bold red]❌ AMX Execution Error[/bold red]",
-            border_style="red",
-            expand=False
-        )
-        console.print(panel)
