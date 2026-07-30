@@ -136,6 +136,14 @@ The `AeroGoalDecompositionEngine` (`packages/aero/src/aero/services/decompositio
 3. **Just-In-Time (JIT) Agent Manifest Synthesis**: When no pre-authored agent manifest matches a user's goal in the registry, `synthesize_jit_manifest()` constructs a valid DAM v3.0 `AgentManifest` JSON on-the-fly.
 4. **Degraded Offline Fallback Matrix**: If a user rejects a required credential during interactive negotiation, `negotiate_fallback()` constructs an offline diagnostic fallback execution plan bypassing the rejected credential.
 
+### 5.5 Live Model Context Protocol (MCP) Stdio Driver (`McpStdioDriver`)
+The `McpStdioDriver` (`packages/aero/src/aero/infrastructure/mcp.py`) implements stdio subprocess JSON-RPC 2.0 transport for Model Context Protocol tool servers:
+
+1. **Subprocess Pipe Management**: Spawns declared MCP tool servers (e.g. `npx -y @modelcontextprotocol/server-postgres`) with bi-directional stdin/stdout JSON-RPC 2.0 text streams.
+2. **JSON-RPC 2.0 Protocol Handshake**: Executes `initialize` protocol exchange, sends `notifications/initialized` signals, and queries available tools via `tools/list`.
+3. **Live Tool Invocation**: Transmits `tools/call` JSON-RPC requests with argument payloads and parses text responses into type-safe `McpToolResult` objects.
+4. **Resource Cleanup**: Ensures graceful stdin/stdout stream teardown and subprocess termination.
+
 ---
 
 ## 6. Presentation Layer (`AeroTerminalUI`)

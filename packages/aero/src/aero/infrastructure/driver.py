@@ -1,13 +1,14 @@
 """LangGraph Deep Agents Execution Engine Infrastructure Driver."""
 
 import time
-from typing import Dict, Any
+from typing import Dict, Any, List, Optional
 from langgraph.graph import StateGraph, END
-from aero.domain.models import AgentManifest
+from aero.domain.models import AgentManifest, CapabilityProviderRequirement
 from aero.infrastructure.diagnostics import AeroDiagnosticTracer
+from aero.infrastructure.mcp import McpStdioDriver, McpToolResult
 
 class LangGraphExecutionDriver:
-    """Executes DAM v3.0 manifests via LangGraph StateGraph engine."""
+    """Executes DAM v3.0 manifests via LangGraph StateGraph engine and live MCP stdio drivers."""
 
     def __init__(self, manifest: AgentManifest, credentials: Dict[str, str], tracer: AeroDiagnosticTracer = None):
         self.manifest = manifest
@@ -15,6 +16,15 @@ class LangGraphExecutionDriver:
         self.tracer = tracer or AeroDiagnosticTracer(enabled=False)
         self.persona = manifest.cognitive_runtime.persona
         self.success_criteria = manifest.cognitive_runtime.success_criteria
+        self.mcp_drivers: List[McpStdioDriver] = []
+        self._init_mcp_drivers()
+
+    def _init_mcp_drivers(self):
+        """Instantiates McpStdioDriver for all declared MCP requirements."""
+        for p in self.manifest.providers:
+            if p.type == "mcp" and p.command:
+                mcp_driver = McpStdioDriver(command=p.command, args=p.args, env=self.credentials)
+                self.mcp_drivers.append(mcp_driver)
 
     def build_graph(self) -> StateGraph:
         workflow = StateGraph(dict)
