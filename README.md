@@ -3,6 +3,7 @@
 [![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
 [![DAM v3.0 Standard](https://img.shields.io/badge/Schema-DAM_v3.0-green.svg)](schemas/declarative-agent.schema.json)
 [![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](packages/aero)
+[![GitHub Repository](https://img.shields.io/badge/GitHub-seismael%2Faeromesh-black.svg?logo=github)](https://github.com/seismael/aeromesh)
 
 **AeroMesh** is an open-source, enterprise-grade autonomous AI agent ecosystem built on the **Declarative Agent Manifest (DAM v3.0)** standard. Powered by **Aero Engine (`amx`)**, it decouples agent capabilities from proprietary vendor lock-in, enabling deterministic pipelines, reusable mesh workflows, and OS-agnostic execution.
 
@@ -39,7 +40,7 @@ aeromesh/
 ### Installation
 ```bash
 # Clone the repository
-git clone https://github.com/aeromesh/aeromesh.git
+git clone https://github.com/seismael/aeromesh.git
 cd aeromesh
 
 # Install aero package in editable mode
