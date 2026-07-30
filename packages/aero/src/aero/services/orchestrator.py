@@ -2,20 +2,22 @@
 
 import os
 import json
-from typing import Dict, Any, List, Union
+from typing import Dict, Any, List, Union, Optional
 from aero.domain.errors import AeroMeshDomainError, ErrorCode, ExitCode
 from aero.domain.paths import get_aeromesh_agents_dir
 from aero.services.runner import AeroAgentRunnerService
 from aero.services.pipeline import DeterministicPipelineOrchestrator
 from aero.services.workflow import AeroWorkflowEngine
+from aero.services.preflight import AeroInteractivePreflightEngine
 
 class AeroMasterOrchestrator:
     """Unified Facade Master Orchestrator for all Agent, Pipeline, and Mesh Workflow executions."""
 
-    def __init__(self, max_workers: int = 10):
+    def __init__(self, max_workers: int = 10, preflight_engine: Optional[AeroInteractivePreflightEngine] = None):
         self.runner = AeroAgentRunnerService()
         self.pipeline_orchestrator = DeterministicPipelineOrchestrator(runner_service=self.runner)
         self.workflow_engine = AeroWorkflowEngine(runner_service=self.runner, max_workers=max_workers)
+        self.preflight = preflight_engine or AeroInteractivePreflightEngine()
 
     def dispatch(
         self,
@@ -26,6 +28,9 @@ class AeroMasterOrchestrator:
     ) -> Dict[str, Any]:
         """Auto-detects execution mode and dispatches target request to the optimal engine."""
 
+        # Pre-Flight Check: Ensure an active LLM provider key is configured
+        self.preflight.ensure_default_provider(non_interactive=non_interactive)
+
         # Mode 1: List of agent manifests passed -> Linear DGAP Pipeline
         if isinstance(target, list):
             if not intent:
@@ -34,6 +39,10 @@ class AeroMasterOrchestrator:
                     ErrorCode.AMX_ERR_SCHEMA_VIOLATION,
                     ExitCode.SCHEMA_VIOLATION,
                 )
+            for manifest_path in target:
+                manifest = self.runner.parser.parse_file(manifest_path)
+                self.preflight.verify_agent_feasibility(manifest, intent)
+
             return {
                 "mode": "PIPELINE",
                 "result": self.pipeline_orchestrator.execute_pipeline(
@@ -83,6 +92,9 @@ class AeroMasterOrchestrator:
                     ErrorCode.AMX_ERR_SCHEMA_VIOLATION,
                     ExitCode.SCHEMA_VIOLATION,
                 )
+            manifest = self.runner.parser.parse_file(target_str)
+            self.preflight.verify_agent_feasibility(manifest, intent)
+
             return {
                 "mode": "AGENT",
                 "result": self.runner.run_manifest_file(

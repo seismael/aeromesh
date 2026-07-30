@@ -64,6 +64,44 @@ class AeroWorkflowEngine:
                 ErrorCode.AMX_ERR_SCHEMA_VIOLATION,
                 ExitCode.SCHEMA_VIOLATION,
             )
+        # Validate step dependency existence & detect cyclic DAG dependencies
+        step_ids = {s["id"] for s in data["steps"]}
+        for step in data["steps"]:
+            for dep_id in step.get("depends_on", []):
+                if dep_id not in step_ids:
+                    raise AeroMeshDomainError(
+                        f"Workflow step '{step['id']}' references non-existent dependency step ID '{dep_id}'.",
+                        ErrorCode.AMX_ERR_SCHEMA_VIOLATION,
+                        ExitCode.SCHEMA_VIOLATION,
+                    )
+
+        # Kahn's Algorithm for DAG Topological Sort & Cycle Detection
+        in_degree = {s_id: 0 for s_id in step_ids}
+        adj_list = {s_id: [] for s_id in step_ids}
+
+        for step in data["steps"]:
+            s_id = step["id"]
+            for dep_id in step.get("depends_on", []):
+                adj_list[dep_id].append(s_id)
+                in_degree[s_id] += 1
+
+        queue = [s_id for s_id, count in in_degree.items() if count == 0]
+        visited_count = 0
+
+        while queue:
+            node = queue.pop(0)
+            visited_count += 1
+            for neighbor in adj_list[node]:
+                in_degree[neighbor] -= 1
+                if in_degree[neighbor] == 0:
+                    queue.append(neighbor)
+
+        if visited_count != len(step_ids):
+            raise AeroMeshDomainError(
+                f"DAG cyclic dependency detected in workflow '{data['identity']['id']}'. Steps form a circular dependency loop.",
+                ErrorCode.AMX_ERR_SCHEMA_VIOLATION,
+                ExitCode.SCHEMA_VIOLATION,
+            )
 
         return data
 
