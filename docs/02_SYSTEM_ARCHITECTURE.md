@@ -141,8 +141,12 @@ The `McpStdioDriver` (`packages/aero/src/aero/infrastructure/mcp.py`) implements
 
 1. **Subprocess Pipe Management**: Spawns declared MCP tool servers (e.g. `npx -y @modelcontextprotocol/server-postgres`) with bi-directional stdin/stdout JSON-RPC 2.0 text streams.
 2. **JSON-RPC 2.0 Protocol Handshake**: Executes `initialize` protocol exchange, sends `notifications/initialized` signals, and queries available tools via `tools/list`.
-3. **Live Tool Invocation**: Transmits `tools/call` JSON-RPC requests with argument payloads and parses text responses into type-safe `McpToolResult` objects.
-4. **Resource Cleanup**: Ensures graceful stdin/stdout stream teardown and subprocess termination.
+### 5.6 Live Model Provider API Binding Engine (`CognitiveProviderAdapter`)
+The `CognitiveProviderAdapter` (`packages/aero/src/aero/infrastructure/providers.py`) binds resolved credentials to live LLM reasoning endpoints:
+
+1. **Multi-Cloud Provider Resolution**: Resolves and manages API credentials for DeepSeek (`deepseek-chat`), Anthropic (`claude-3-5-sonnet`), OpenAI (`gpt-4o`), and Gemini (`gemini-2.5-flash`).
+2. **Zero-Dependency Transport**: Issues HTTP REST prompt completions via standard library `urllib.request` without external vendor SDK dependencies.
+3. **Resilient Offline Fallback**: Automatically detects mock test keys or offline environments (`AEROMESH_LIVE_API`), providing structured completions to maintain deterministic execution contracts.
 
 ---
 

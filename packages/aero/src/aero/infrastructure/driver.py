@@ -6,6 +6,7 @@ from langgraph.graph import StateGraph, END
 from aero.domain.models import AgentManifest, CapabilityProviderRequirement
 from aero.infrastructure.diagnostics import AeroDiagnosticTracer
 from aero.infrastructure.mcp import McpStdioDriver, McpToolResult
+from aero.infrastructure.providers import CognitiveProviderAdapter
 
 class LangGraphExecutionDriver:
     """Executes DAM v3.0 manifests via LangGraph StateGraph engine and live MCP stdio drivers."""
@@ -16,6 +17,7 @@ class LangGraphExecutionDriver:
         self.tracer = tracer or AeroDiagnosticTracer(enabled=False)
         self.persona = manifest.cognitive_runtime.persona
         self.success_criteria = manifest.cognitive_runtime.success_criteria
+        self.provider_adapter = CognitiveProviderAdapter(credentials=credentials)
         self.mcp_drivers: List[McpStdioDriver] = []
         self._init_mcp_drivers()
 
@@ -47,17 +49,22 @@ class LangGraphExecutionDriver:
 
         def execution_step(state):
             t0 = time.time()
+            prompt_res = self.provider_adapter.complete_prompt(
+                system_prompt=self.persona,
+                user_prompt=state.get("intent", ""),
+            )
             res = {
                 "step": "execution",
                 "status": "executed",
-                "mcp_output": "CREATE INDEX idx_users_email ON users(email);",
+                "mcp_output": prompt_res,
+                "provider_id": self.provider_adapter.active_provider_id,
             }
             if self.tracer.enabled:
                 self.tracer.record_span(
                     event_type="MCP_TOOL_CALLED",
                     component="LangGraph.Executor",
                     duration_ms=(time.time() - t0) * 1000,
-                    metadata={"tool": "execute_query", "transport": "stdio"},
+                    metadata={"tool": "execute_query", "transport": "stdio", "provider": self.provider_adapter.active_provider_id},
                 )
             return res
 

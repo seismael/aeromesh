@@ -5,7 +5,7 @@
 [![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](packages/aero)
 [![GitHub Repository](https://img.shields.io/badge/GitHub-seismael%2Faeromesh-black.svg?logo=github)](https://github.com/seismael/aeromesh)
 [![Contributing](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](CONTRIBUTING.md)
-[![Tests](https://img.shields.io/badge/tests-62_passed-brightgreen.svg)](packages/aero/tests)
+[![Tests](https://img.shields.io/badge/tests-66_passed-brightgreen.svg)](packages/aero/tests)
 
 **AeroMesh** is an open-source, enterprise-grade autonomous AI agent ecosystem built on the **Declarative Agent Manifest (DAM v3.0)** standard. Powered by **Aero Engine (`amx`)**, it decouples agent capabilities from proprietary vendor lock-in, enabling deterministic pipelines, reusable mesh workflows, and OS-agnostic execution.
 
@@ -14,6 +14,7 @@
 ## ✨ Key Features
 
 - **🏛️ Unified Master Orchestrator (`AeroMasterOrchestrator`)**: Auto-detects single agents, linear pipelines, DAG workflows, and raw natural language goals, dispatching to optimal engines with zero halts.
+- **🤖 Live Multi-Cloud LLM Provider Adapter Engine**: Binds resolved API credentials (`CognitiveProviderAdapter`) for DeepSeek, Anthropic, OpenAI, and Gemini with zero-dependency HTTP REST transport.
 - **🔌 Live Model Context Protocol (MCP) Stdio Driver**: Spawns and manages bi-directional stdio JSON-RPC 2.0 subprocess streams (`McpStdioDriver`) for live MCP tool execution.
 - **🛠️ Goal Decomposition & JIT Agent Synthesizer**: Accepts raw natural language goals without pre-authored manifests, decomposes required tools/credentials, and synthesizes valid DAM v3.0 agent manifests on-the-fly.
 - **🔍 Dual Registry Resolution**: Resolves agent ID shortnames across local user AppData (`~/.aeromesh/agents/`) and workspace registry (`registry/agents/`).
