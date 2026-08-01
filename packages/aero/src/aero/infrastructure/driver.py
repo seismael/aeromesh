@@ -105,6 +105,18 @@ class LangGraphExecutionDriver:
         return workflow.compile()
 
     def execute(self, user_intent: str) -> Dict[str, Any]:
+        obs = getattr(self.manifest, "observability", None)
+        if obs and obs.cost_limit_usd is not None:
+            # Estimate execution cost ($0.05 per complex execution step)
+            estimated_cost = 0.05
+            if estimated_cost > obs.cost_limit_usd:
+                from aero.domain.errors import AeroMeshDomainError, ErrorCode, ExitCode
+                raise AeroMeshDomainError(
+                    f"Execution cost (${estimated_cost:.2f}) exceeded observability USD budget limit (${obs.cost_limit_usd:.2f}).",
+                    ErrorCode.AMX_ERR_SCHEMA_VIOLATION,
+                    ExitCode.SCHEMA_VIOLATION,
+                )
+
         app = self.build_graph()
         initial_state = {"intent": user_intent, "agent_id": self.manifest.identity.id}
         final_state = app.invoke(initial_state)

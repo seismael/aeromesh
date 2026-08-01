@@ -33,3 +33,11 @@ class AeroMeshDomainError(Exception):
 
     def __str__(self) -> str:
         return f"[{self.error_code.value}] (Exit {self.exit_code.value}): {self.message}"
+
+class AeroMeshDomainBlockedError(AeroMeshDomainError):
+    def __init__(self, domain: str):
+        super().__init__(
+            f"Access to domain '{domain}' is BLOCKED by sandbox firewall rules.",
+            ErrorCode.AMX_ERR_DOMAIN_BLOCKED,
+            ExitCode.DOMAIN_BLOCKED,
+        )

@@ -258,3 +258,31 @@ class AeroWorkflowEngine:
             "schedules_file": str(schedules_file),
             "status": "SCHEDULED_SUCCESSFULLY",
         }
+
+    def run_daemon_step(self, enable_diagnostics: bool = False) -> Dict[str, Any]:
+        """Polls ~/.aeromesh/schedules.json and executes all scheduled workflow jobs in non-interactive mode."""
+        schedules_file = get_aeromesh_home() / "schedules.json"
+        if not schedules_file.exists():
+            return {"daemon_status": "IDLE", "executed_count": 0, "results": []}
+
+        try:
+            with open(schedules_file, "r", encoding="utf-8") as f:
+                schedules = json.load(f)
+        except Exception:
+            schedules = {}
+
+        results = []
+        for wf_id, wf_info in schedules.items():
+            wf_path = wf_info.get("workflow_path")
+            if wf_path and os.path.exists(wf_path):
+                try:
+                    res = self.execute_workflow(wf_path, non_interactive=True, enable_diagnostics=enable_diagnostics)
+                    results.append({"workflow_id": wf_id, "status": "SUCCESS", "res": res})
+                except Exception as e:
+                    results.append({"workflow_id": wf_id, "status": "FAILED", "error": str(e)})
+
+        return {
+            "daemon_status": "POLLING_CYCLE_COMPLETE",
+            "executed_count": len(results),
+            "results": results,
+        }

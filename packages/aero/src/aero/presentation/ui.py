@@ -153,3 +153,48 @@ class AeroTerminalUI:
 
         console.print(table)
 
+    @staticmethod
+    def render_search_results(results: List[Any]) -> None:
+        """Renders 2-Tier Search Index results in a Rich table layout."""
+        table = Table(title="🔍 AeroMesh 2-Tier Agent Search Index", show_header=True, header_style="bold cyan")
+        table.add_column("Agent ID", style="bold green")
+        table.add_column("Score", justify="right", style="yellow")
+        table.add_column("Tier", style="magenta")
+        table.add_column("Domain", style="blue")
+        table.add_column("Match Rationale", style="white")
+
+        for res in results:
+            table.add_row(
+                res.record.id,
+                f"{res.match_score:.2f}",
+                res.search_tier,
+                res.record.domain,
+                res.rationale,
+            )
+
+        console.print(table)
+
+    @staticmethod
+    def render_security_audit(audit_res: Dict[str, Any]) -> None:
+        """Renders static security scanner results and Sigstore cryptographic attestations."""
+        is_sec = audit_res.get("is_secure", False)
+        status_str = "[bold green]SECURE ✅[/bold green]" if is_sec else "[bold red]VULNERABLE ❌[/bold red]"
+
+        lines = [
+            f"[bold cyan]Agent ID:[/bold cyan] {audit_res.get('agent_id')} (v{audit_res.get('version')})",
+            f"[bold cyan]Security Status:[/bold cyan] {status_str}",
+            f"[bold cyan]SHA-256 Sigstore Hash:[/bold cyan] [yellow]{audit_res.get('sha256_attestation')}[/yellow]\n",
+        ]
+
+        issues = audit_res.get("issues", [])
+        if issues:
+            lines.append("[bold red]Detected Issues:[/bold red]")
+            for issue in issues:
+                lines.append(f"  • {issue}")
+        else:
+            lines.append("[bold green]Zero security vulnerabilities detected.[/bold green]")
+
+        panel = Panel("\n".join(lines), title="[bold magenta]🛡️ Guardian Security Attestation Audit[/bold magenta]", border_style="magenta", expand=False)
+        console.print(panel)
+
+

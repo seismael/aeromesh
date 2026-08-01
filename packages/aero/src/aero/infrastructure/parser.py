@@ -11,6 +11,8 @@ from aero.domain.models import (
     AgentCapabilities,
     CognitiveRuntimeProfile,
     CapabilityProviderRequirement,
+    SwarmTopology,
+    ObservabilityProfile,
 )
 
 SCHEMA_PATH = os.path.abspath(
@@ -75,6 +77,7 @@ class ManifestParser:
             version=identity_data["version"],
             author=identity_data.get("author"),
             license=identity_data.get("license", "MIT"),
+            funding=identity_data.get("funding"),
         )
 
         caps_data = data["capabilities"]
@@ -84,6 +87,8 @@ class ManifestParser:
             short_description=caps_data["short_description"],
             evaluation_trigger=caps_data["evaluation_trigger"],
             sub_domain=caps_data.get("sub_domain"),
+            input_contract=caps_data.get("input_contract"),
+            output_contract=caps_data.get("output_contract"),
         )
 
         runtime_data = data["cognitive_runtime"]
@@ -92,6 +97,7 @@ class ManifestParser:
             success_criteria=runtime_data["success_criteria"],
             driver=runtime_data.get("driver", "Driver.LangGraph"),
             memory_policy=runtime_data.get("memory_policy", "CVM_LRU_PAGING"),
+            checkpoint_policy=runtime_data.get("checkpoint_policy", "ON_STEP"),
         )
 
         providers = []
@@ -105,7 +111,31 @@ class ManifestParser:
                     command=prov_data.get("command"),
                     args=prov_data.get("args", []),
                     allowed_domains=prov_data.get("allowed_domains", []),
+                    uri=prov_data.get("uri"),
+                    required_tools=prov_data.get("required_tools", []),
+                    fallback_action=prov_data.get("fallback_action"),
+                    isolation=prov_data.get("isolation"),
+                    agent_id=prov_data.get("agent_id"),
+                    delegation_purpose=prov_data.get("delegation_purpose"),
                 )
+            )
+
+        swarm_topology = None
+        if "swarm_topology" in data:
+            st = data["swarm_topology"]
+            swarm_topology = SwarmTopology(
+                pattern=st.get("pattern", "hierarchical"),
+                consensus_threshold=st.get("consensus_threshold"),
+                routing_key=st.get("routing_key"),
+            )
+
+        observability = None
+        if "observability" in data:
+            obs = data["observability"]
+            observability = ObservabilityProfile(
+                trace_level=obs.get("trace_level", "info"),
+                cost_limit_usd=obs.get("cost_limit_usd"),
+                max_execution_steps=obs.get("max_execution_steps"),
             )
 
         return AgentManifest(
@@ -114,4 +144,6 @@ class ManifestParser:
             capabilities=caps,
             cognitive_runtime=runtime,
             providers=providers,
+            swarm_topology=swarm_topology,
+            observability=observability,
         )

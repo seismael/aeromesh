@@ -10,6 +10,7 @@ class AgentIdentity:
     version: str
     author: Optional[str] = None
     license: str = "MIT"
+    funding: Optional[Dict[str, Any]] = None
 
 @dataclass(frozen=True)
 class AgentCapabilities:
@@ -18,6 +19,8 @@ class AgentCapabilities:
     short_description: str
     evaluation_trigger: str
     sub_domain: Optional[str] = None
+    input_contract: Optional[Dict[str, Any]] = None
+    output_contract: Optional[Dict[str, Any]] = None
 
 @dataclass(frozen=True)
 class CognitiveRuntimeProfile:
@@ -25,6 +28,7 @@ class CognitiveRuntimeProfile:
     success_criteria: str
     driver: str = "Driver.LangGraph"
     memory_policy: str = "CVM_LRU_PAGING"
+    checkpoint_policy: str = "ON_STEP"
 
 @dataclass(frozen=True)
 class CapabilityProviderRequirement:
@@ -35,6 +39,24 @@ class CapabilityProviderRequirement:
     command: Optional[str] = None
     args: List[str] = field(default_factory=list)
     allowed_domains: List[str] = field(default_factory=list)
+    uri: Optional[str] = None
+    required_tools: List[str] = field(default_factory=list)
+    fallback_action: Optional[str] = None
+    isolation: Optional[str] = None
+    agent_id: Optional[str] = None
+    delegation_purpose: Optional[str] = None
+
+@dataclass(frozen=True)
+class SwarmTopology:
+    pattern: str = "hierarchical"
+    consensus_threshold: Optional[float] = None
+    routing_key: Optional[str] = None
+
+@dataclass(frozen=True)
+class ObservabilityProfile:
+    trace_level: str = "info"
+    cost_limit_usd: Optional[float] = None
+    max_execution_steps: Optional[int] = None
 
 @dataclass(frozen=True)
 class AgentManifest:
@@ -43,3 +65,5 @@ class AgentManifest:
     capabilities: AgentCapabilities
     cognitive_runtime: CognitiveRuntimeProfile
     providers: List[CapabilityProviderRequirement]
+    swarm_topology: Optional[SwarmTopology] = None
+    observability: Optional[ObservabilityProfile] = None

@@ -57,3 +57,48 @@ class DeterministicPipelineOrchestrator:
             "final_verified_result": current_input,
             "pipeline_results": pipeline_results,
         }
+
+    def execute_consensus_swarm(
+        self,
+        manifest_paths: List[str],
+        intent: str,
+        consensus_threshold: float = 0.5,
+        non_interactive: bool = False,
+        enable_diagnostics: bool = False,
+    ) -> Dict[str, Any]:
+        """Executes multiple agents concurrently over intent and computes voting consensus agreement."""
+        if not manifest_paths:
+            raise AeroMeshDomainError("Consensus swarm requires at least one agent manifest.")
+
+        agent_results = []
+        output_votes: Dict[str, int] = {}
+
+        for manifest_path in manifest_paths:
+            manifest = self.runner.parser.parse_file(manifest_path)
+            res = self.runner.run_manifest_file(
+                manifest_path,
+                intent,
+                non_interactive=non_interactive,
+                enable_diagnostics=enable_diagnostics,
+            )
+            v_output = res["execution_result"].get("verified_result", "").strip()
+            agent_results.append({
+                "agent_id": manifest.identity.id,
+                "verified_output": v_output,
+            })
+            output_votes[v_output] = output_votes.get(v_output, 0) + 1
+
+        total_agents = len(manifest_paths)
+        majority_output, highest_votes = max(output_votes.items(), key=lambda item: item[1]) if output_votes else ("", 0)
+        consensus_ratio = highest_votes / max(1, total_agents)
+        consensus_reached = consensus_ratio >= consensus_threshold
+
+        return {
+            "swarm_status": "CONSENSUS_REACHED" if consensus_reached else "CONSENSUS_FAILED",
+            "consensus_reached": consensus_reached,
+            "consensus_ratio": consensus_ratio,
+            "consensus_threshold": consensus_threshold,
+            "winning_output": majority_output,
+            "votes_tally": output_votes,
+            "agent_results": agent_results,
+        }

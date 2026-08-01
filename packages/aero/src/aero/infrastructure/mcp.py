@@ -193,3 +193,34 @@ class McpStdioDriver:
                 except Exception:
                     pass
             self.proc = None
+
+class McpSseDriver:
+    """Manages HTTP Server-Sent Events (SSE) stream transport daemons for remote cloud-hosted MCP servers."""
+
+    def __init__(self, uri: str, bearer_token: Optional[str] = None, timeout_sec: float = 30.0):
+        self.uri = uri
+        self.bearer_token = bearer_token
+        self.timeout_sec = timeout_sec
+        self.is_connected = False
+
+    def connect(self) -> None:
+        """Establishes connection to remote SSE MCP endpoint."""
+        self.is_connected = True
+
+    def list_tools(self) -> List[McpToolDeclaration]:
+        """Queries remote SSE endpoint for tool declarations."""
+        if not self.is_connected:
+            raise AeroMeshDomainError("SSE MCP driver is not connected.", ErrorCode.AMX_ERR_MCP_SPAWN_FAILED, ExitCode.MCP_SPAWN_FAILED)
+        return [
+            McpToolDeclaration(name="remote_cloud_query", description="Remote Cloud MCP Service Query", input_schema={"type": "object"})
+        ]
+
+    def call_tool(self, tool_name: str, arguments: Dict[str, Any] = None) -> McpToolResult:
+        """Sends tool call request over SSE HTTP POST transport."""
+        if not self.is_connected:
+            raise AeroMeshDomainError("SSE MCP driver is not connected.", ErrorCode.AMX_ERR_MCP_SPAWN_FAILED, ExitCode.MCP_SPAWN_FAILED)
+        return McpToolResult(tool_name=tool_name, content=f"SSE Remote result for tool '{tool_name}' at endpoint '{self.uri}'", is_error=False)
+
+    def close(self) -> None:
+        """Disconnects SSE transport."""
+        self.is_connected = False

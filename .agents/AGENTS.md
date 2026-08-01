@@ -125,6 +125,11 @@ packages/<package_name>/
         └── infrastructure/     <-- Vault Keyrings, MCP Stdio Drivers, Repositories
 ```
 
+### 5.1 Core Engine Package Consolidation Mandate
+- **Consolidation over Fragmentation:** Python engine features (2-tier search discovery, security vault, sandbox firewall, stdio transport, JIT synthesis, static scanner) MUST be consolidated as submodules inside `packages/aero/src/aero/`.
+- **Anti-Proliferation Rule:** Agents MUST NOT create separate micro-packages with 1-2 files under `packages/` for engine features. `packages/aero` is the unified standalone Python package for the AeroMesh kernel and CLI engine.
+
+
 ---
 
 ## 6. DETERMINISTIC GUARANTEED AGENT PIPELINE ENGINE (DGAP)
