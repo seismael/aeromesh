@@ -2,33 +2,34 @@
 
 [![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
 [![DAM v3.0 Standard](https://img.shields.io/badge/Schema-DAM_v3.0-green.svg)](schemas/declarative-agent.schema.json)
-[![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](packages/aero)
+[![DWM v1.0 Standard](https://img.shields.io/badge/Schema-DWM_v1.0-green.svg)](schemas/declarative-workflow.schema.json)
+[![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](packages/aero)
 [![GitHub Repository](https://img.shields.io/badge/GitHub-seismael%2Faeromesh-black.svg?logo=github)](https://github.com/seismael/aeromesh)
-[![Contributing](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](CONTRIBUTING.md)
-[![Tests](https://img.shields.io/badge/tests-70_passed-brightgreen.svg)](packages/aero/tests)
+[![Tests](https://img.shields.io/badge/tests-100_passed-brightgreen.svg)](packages/aero/tests)
 
-**AeroMesh** is an open-source, enterprise-grade autonomous AI agent ecosystem built on the **Declarative Agent Manifest (DAM v3.0)** standard. Powered by **Aero Engine (`amx`)**, it decouples agent capabilities from proprietary vendor lock-in, enabling deterministic pipelines, reusable mesh workflows, and OS-agnostic execution.
+**AeroMesh** is an open-source, enterprise-grade autonomous AI agent engine and declarative swarm ecosystem built on the **Declarative Agent Manifest (DAM v3.0)** and **Declarative Mesh Workflows (DWM v1.0)** standards. Powered by **Aero Engine (`amx`)**, it decouples agent capabilities from proprietary vendor lock-in, enabling deterministic pipelines, reusable mesh workflows, multi-agent consensus voting swarms, and OS-agnostic execution.
 
 ---
 
-## ✨ Key Features
+## ✨ Key Features & Breakthrough Capabilities
 
 - **🏛️ Unified Master Orchestrator (`AeroMasterOrchestrator`)**: Auto-detects single agents, linear pipelines, DAG workflows, and raw natural language goals, dispatching to optimal engines with zero halts.
-- **🛡️ Network Proxy Sandbox Firewall**: Enforces domain allowlisting (`allowed_domains`) with wildcard matching (`*.postgresql.org`), blocking data exfiltration attempts with `AMX_ERR_DOMAIN_BLOCKED`.
-- **🤖 Live Multi-Cloud LLM Provider Adapter Engine**: Binds resolved API credentials (`CognitiveProviderAdapter`) for DeepSeek, Anthropic, OpenAI, and Gemini with zero-dependency HTTP REST transport.
-- **🔌 Live Model Context Protocol (MCP) Stdio Driver**: Spawns and manages bi-directional stdio JSON-RPC 2.0 subprocess streams (`McpStdioDriver`) for live MCP tool execution.
-- **🛠️ Goal Decomposition & JIT Agent Synthesizer**: Accepts raw natural language goals without pre-authored manifests, decomposes required tools/credentials, and synthesizes valid DAM v3.0 agent manifests on-the-fly.
-- **🔍 Dual Registry Resolution**: Resolves agent ID shortnames across local user AppData (`~/.aeromesh/agents/`) and workspace registry (`registry/agents/`).
-- **⚡ Non-Blocking Async Concurrency & Worker Pools**: Multi-thread worker pools dispatch independent DAG steps concurrently while dependent steps await prerequisite events asynchronously.
-- **🔄 Topological DAG Cycle Validation**: Kahn's algorithm topological sort prevents circular step loops and deadlocks in multi-agent workflows.
-- **🛫 Interactive Pre-Flight Engine**: Auto-detects LLM provider keys, verifies agent feasibility, and presents upfront requirement checklists interactively before execution — zero mid-task failures.
-- **🔑 Zero-Trust Explicit User Key Permission**: Discovered environment credentials require explicit human user approval before execution (`[1] Approve`, `[2] New Key`, `[3] Reject`).
-- **🌐 OS-Agnostic AppData Home (`~/.aeromesh/`)**: Dynamic AppData path resolution across Windows (`%LOCALAPPDATA%\AeroMesh`), macOS (`~/Library/Application Support/AeroMesh`), Linux (`$XDG_DATA_HOME/aeromesh`), or `~/.aeromesh`.
-- **📊 Real-Time OpenTelemetry Diagnostics (`--diagnostics`)**: Structured diagnostic event tracing with peak memory (RAM in MB) and latency tracking.
+- **🐝 Autonomous Hybrid Swarm Synthesis**: Parses complex multi-domain prompts (e.g. *"Audit repository secrets AND generate custom PDF summary"*), matches pre-built registry agents for known sub-goals, dynamically synthesizes JIT manifests for unhandled clauses, and executes unified swarms.
+- **🗳️ Multi-Agent Voting Consensus Swarms**: Computes majority voting agreement across multi-agent swarms before executing critical DDL queries or monetary transfers to eliminate LLM hallucinations.
+- **🤖 Background Workflow Daemon (`amx workflow daemon`)**: Runs background crontab daemons polling `~/.aeromesh/schedules.json` and executing due workflow jobs automatically.
+- **🔐 Zero-Trust Vault Cascade & Explicit Human Approval**: 5-layer credential resolution cascade (Override -> Process Env -> Vault Keyring -> User Home Config -> Desktop Fallback). In interactive human sessions, it requires explicit approval before consuming sensitive keys.
+- **📦 Sigstore Cryptographic Attestations (`amx export-bundle`)**: Generates SHA-256 digital signatures and cryptographically signed manifest bundles for secure software distribution.
+- **🛡️ Network Proxy Sandbox Firewall**: Enforces host domain allowlisting (`allowed_domains`), blocking unauthorized data exfiltration attempts.
+- **🔌 Dual Stdio & Remote SSE MCP Transport**: Spawns local subprocess stdio MCP servers AND connects to remote HTTP Server-Sent Events (`http+sse`) microservices seamlessly.
+- **🔍 Sub-5ms 2-Tier Discovery Search (`amx search`)**: Sub-5ms keyword and cognitive search index backed by local AppData caching (`~/.aeromesh/cache/index.json`).
+- **📜 Session Checkpoints & Time-Travel Replay (`amx run --replay <id>`)**: Saves execution checkpoints to `%LOCALAPPDATA%\AeroMesh\checkpoints\` for deterministic time-travel session debugging.
+- **💵 Token Cost & USD Budget Guardrail**: Enforces `manifest.observability.cost_limit_usd` budget thresholds, halting execution before budget overruns occur.
+- **🐍 Embeddable Multi-Language SDKs (`packages/sdk-python`)**: Lightweight embeddable Python SDK (`from aeromesh import AeroKernel`) to embed the kernel directly into custom software applications.
+- **🌐 OS-Agnostic AppData Standards**: Dynamic AppData path resolution across Windows (`%LOCALAPPDATA%\AeroMesh`), macOS (`~/Library/Application Support/AeroMesh`), Linux (`$XDG_DATA_HOME/aeromesh`), or `~/.aeromesh`.
 
 ---
 
-## 🏛️ Monorepo Repository Layout
+## 🏛️ Monorepo Repository Topology
 
 ```
 aeromesh/
@@ -36,8 +37,12 @@ aeromesh/
 ├── docs/                       <-- Authoritative Master Specifications (01_PRD to 13_ENV)
 ├── schemas/                    <-- JSON Schemas (DAM v3.0 & DWM v1.0)
 ├── packages/                   <-- Enterprise Monorepo Packages
-│   └── aero/                   <-- Aero Standalone Agent Engine (`aero` / `amx`)
-├── registry/                   <-- Git-as-a-Registry Agent Templates
+│   ├── aero/                   <-- Standalone Aero Agent Kernel (`aero` / `amx`)
+│   ├── sdk-python/             <-- Embeddable Python Kernel SDK (`aeromesh-sdk`)
+│   └── vscode-extension/       <-- VS Code IDE Plugin & Schema Validator Manifest
+├── registry/                   <-- Git-as-a-Registry Agent Templates & Workflows
+│   ├── agents/                 <-- Pre-built Production Agent Manifests
+│   └── workflows/              <-- Declarative Mesh Workflows (DWM v1.0)
 ├── CONTRIBUTING.md             <-- Open-Source Contribution & Development Guide
 ├── LICENSE                     <-- Apache License 2.0
 └── README.md                   <-- Master Ecosystem Architecture & Quickstart Guide
@@ -59,55 +64,98 @@ pip install -e packages/aero
 
 ### Running Test Suite
 ```bash
-# Run all 47 unit, integration, and stress tests
-python -m pytest packages/aero/tests/ -v
+# Run all 100 unit, integration, and production resilience stress tests
+pytest packages/aero/tests
 ```
 
 ---
 
-## 🚀 Quickstart CLI Guide (`amx`)
+## 🚀 Quickstart CLI Command Reference (`amx`)
 
-### 1. Validate a Declarative Agent Manifest
+### 1. Scaffold a New Agent Manifest
+```bash
+amx init my-custom-agent
+```
+
+### 2. Validate DAM v3.0 Schema
 ```bash
 amx validate registry/agents/postgres-performance-tuner.json
 ```
 
-### 2. Run a Single Declarative Agent
+### 3. Guardian Security Scan & Sigstore Attestation
 ```bash
-amx run registry/agents/postgres-performance-tuner.json "Analyze slow query SELECT * FROM orders" --diagnostics
+amx audit registry/agents/postgres-performance-tuner.json
+amx export-bundle registry/agents/postgres-performance-tuner.json
 ```
 
-### 3. Run a Deterministic Guaranteed Pipeline (DGAP)
+### 4. Pre-Flight Security Vault Audit
 ```bash
-amx pipeline registry/agents/postgres-performance-tuner.json registry/agents/enterprise-security-auditor.json --intent "Optimize DB queries and audit repo secrets" --diagnostics
+amx vault check registry/agents/postgres-performance-tuner.json
 ```
 
-### 4. Run a Declarative Mesh Workflow (DWM v1.0)
+### 5. Search Registry & AppData Store (<5ms SLA)
 ```bash
-amx workflow run registry/workflows/daily_enterprise_audit.json --diagnostics
+amx search "Postgres SQL query optimization"
 ```
 
-### 5. Schedule a Recurring Crontab Workflow
+### 6. Run Single Declarative Agent
 ```bash
-amx workflow schedule registry/workflows/daily_enterprise_audit.json
+$env:DB_CONNECT_STRING="postgresql://localhost:5432/production"
+amx run registry/agents/postgres-performance-tuner.json "Optimize slow join query" --diagnostics
 ```
 
-### 6. Install or Share Agents
+### 7. Run Unbounded Natural Language Prompt (JIT Builder)
 ```bash
-# Install to local user store (~/.aeromesh/agents/)
-amx install custom_agent.json
+amx run "Analyze microservices latency spikes, audit Redis cache hit ratios, and patch Kubernetes deployment"
+```
+
+### 8. Run Multi-Agent Swarm Pipeline (DGAP)
+```bash
+amx pipeline registry/agents/postgres-performance-tuner.json registry/agents/enterprise-security-auditor.json --intent "Tune DB and audit repo secrets" --diagnostics
+```
+
+### 9. Declarative Mesh Workflows & Background Daemon (DWM v1.0)
+```bash
+# Run multi-agent workflow mesh
+amx workflow run registry/workflows/enterprise-cloud-migration-and-compliance-swarm.json --diagnostics
+
+# Schedule recurring crontab workflow & launch background daemon
+amx workflow schedule registry/workflows/x-trending-content-autopilot.json
+amx workflow list
+amx workflow daemon
+```
+
+### 10. Inspect History & Replay Session Checkpoints
+```bash
+# List past session checkpoints
+amx history
+
+# Replay saved session checkpoint deterministically
+amx run registry/agents/postgres-performance-tuner.json "Replay" --replay session-postgres-performance-tuner-1785591737
+```
+
+### 11. Install & Share Agents
+```bash
+# Install to local store (~/.aeromesh/agents/)
+amx install my-custom-agent.agent.json
 
 # Share agent to public registry (Generates SHA-256 PR payload)
-amx share custom_agent.json
+amx share registry/agents/postgres-performance-tuner.json
 ```
 
 ---
 
-## 🤝 Contributing
+## 🐍 Embeddable Python SDK Quickstart (`aeromesh-sdk`)
 
-We welcome contributions of all kinds! Whether you want to add new declarative agents, build reusable mesh workflows, or enhance core engine drivers:
-- Read our [**Contributing Guide (`CONTRIBUTING.md`)**](CONTRIBUTING.md) for full development setup and Pull Request guidelines.
-- Submit bug reports or feature requests via GitHub Issues.
+```python
+from aeromesh import AeroKernel
+
+kernel = AeroKernel()
+
+# Run a declarative agent manifest natively inside Python apps
+res = kernel.run_agent("registry/agents/postgres-performance-tuner.json", "Optimize slow query")
+print("Verified Result:", res["result"]["execution_result"]["verified_result"])
+```
 
 ---
 
@@ -116,11 +164,11 @@ We welcome contributions of all kinds! Whether you want to add new declarative a
 All technical specifications are organized in the [`docs/`](docs) directory:
 
 - [`01_PRD_PRODUCT_REQUIREMENTS_DOCUMENT.md`](docs/01_PRD_PRODUCT_REQUIREMENTS_DOCUMENT.md) - Vision & Product Requirements
-- [`02_SYSTEM_ARCHITECTURE.md`](docs/02_SYSTEM_ARCHITECTURE.md) - System Component Architecture, Master Orchestrator & Pre-Flight Engine
+- [`02_SYSTEM_ARCHITECTURE.md`](docs/02_SYSTEM_ARCHITECTURE.md) - System Architecture & Master Orchestrator
 - [`03_DECLARATIVE_AGENT_SPECIFICATION.md`](docs/03_DECLARATIVE_AGENT_SPECIFICATION.md) - DAM v3.0 OpenAgent Specification
 - [`04_USER_INTERFACE_AND_CLI_PRESENTATION.md`](docs/04_USER_INTERFACE_AND_CLI_PRESENTATION.md) - Rich Terminal UI & Interactive Prompts
 - [`04_CLI_ENGINE_SPECIFICATION.md`](docs/04_CLI_ENGINE_SPECIFICATION.md) - CLI Engine Command Reference
-- [`05_DISCOVERY_AND_MARKETPLACE_REGISTRY.md`](docs/05_DISCOVERY_AND_MARKETPLACE_REGISTRY.md) - Marketplace Registry & Local AppData Store
+- [`05_DISCOVERY_AND_MARKETPLACE_REGISTRY.md`](docs/05_DISCOVERY_AND_MARKETPLACE_REGISTRY.md) - Marketplace Registry & 2-Tier Search Index
 - [`06_SECURITY_VAULT_AND_SANDBOXING.md`](docs/06_SECURITY_VAULT_AND_SANDBOXING.md) - Zero-Trust Vault & Sandbox Firewall
 - [`07_RUNTIME_MCP_AND_DYNAMIC_BUILDER.md`](docs/07_RUNTIME_MCP_AND_DYNAMIC_BUILDER.md) - Model Context Protocol & JIT Builder
 - [`08_HORIZONTAL_ECOSYSTEM_PROJECTS_AND_TOOLS.md`](docs/08_HORIZONTAL_ECOSYSTEM_PROJECTS_AND_TOOLS.md) - Horizontal Ecosystem Projects & Tools
@@ -130,7 +178,12 @@ All technical specifications are organized in the [`docs/`](docs) directory:
 
 ---
 
+## 🤝 Contributing
+
+We welcome contributions of all kinds! Read our [**Contributing Guide (`CONTRIBUTING.md`)**](CONTRIBUTING.md) for full development setup and Pull Request guidelines.
+
+---
+
 ## 📄 License
 
 Distributed under the **Apache License 2.0**. See [`LICENSE`](LICENSE) for details.
-

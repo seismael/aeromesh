@@ -16,8 +16,18 @@ from aero.domain.models import (
 )
 
 SCHEMA_PATH = os.path.abspath(
-    os.path.join(os.path.dirname(__file__), "..", "..", "..", "..", "..", "schemas", "declarative-agent.schema.json")
+    os.path.join(
+        os.path.dirname(__file__),
+        "..",
+        "..",
+        "..",
+        "..",
+        "..",
+        "schemas",
+        "declarative-agent.schema.json",
+    )
 )
+
 
 class ManifestParser:
     """Parses raw manifest text or dict and validates against DAM v3.0 JSON Schema."""

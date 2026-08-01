@@ -1,9 +1,9 @@
 """Schema Binding & IntelliSense Metadata Infrastructure Service for IDEs & Studio Tools."""
 
 import os
-import json
-from typing import Dict, Any, Optional, List
+from typing import Dict, Any, Optional
 from aero.infrastructure.parser import SCHEMA_PATH, ManifestParser
+
 
 class AeroSchemaBindingService:
     """Provides schema validation, field hover tooltips, and IntelliSense binding metadata."""
@@ -17,7 +17,11 @@ class AeroSchemaBindingService:
             "schema_uri": "https://schemas.aeromesh.dev/v3.0/declarative-agent.schema.json",
             "local_schema_path": os.path.abspath(SCHEMA_PATH),
             "manifest_version": "3.0.0",
-            "supported_drivers": ["Driver.LangGraph", "Driver.LangChain", "Driver.CustomCDI"],
+            "supported_drivers": [
+                "Driver.LangGraph",
+                "Driver.LangChain",
+                "Driver.CustomCDI",
+            ],
             "supported_transports": ["stdio", "sse", "http"],
         }
 

@@ -2,8 +2,8 @@
 
 from typing import List, Dict, Any
 from aero.domain.errors import AeroMeshDomainError
-from aero.domain.models import AgentManifest
 from aero.services.runner import AeroAgentRunnerService
+
 
 class DeterministicPipelineOrchestrator:
     """Master orchestrator executing contract-validated guaranteed agent pipelines."""
@@ -20,14 +20,16 @@ class DeterministicPipelineOrchestrator:
     ) -> Dict[str, Any]:
         """Executes a sequence of guaranteed agents step-by-step with output verification."""
         if not manifest_paths:
-            raise AeroMeshDomainError("Pipeline must contain at least one agent manifest.")
+            raise AeroMeshDomainError(
+                "Pipeline must contain at least one agent manifest."
+            )
 
         pipeline_results = []
         current_input = initial_intent
 
         for step_idx, manifest_path in enumerate(manifest_paths, start=1):
             manifest = self.runner.parser.parse_file(manifest_path)
-            
+
             # Step execution
             step_res = self.runner.run_manifest_file(
                 manifest_path,
@@ -37,16 +39,18 @@ class DeterministicPipelineOrchestrator:
             )
 
             verified_output = step_res["execution_result"].get("verified_result", "")
-            
-            pipeline_results.append({
-                "step": step_idx,
-                "agent_id": manifest.identity.id,
-                "agent_name": manifest.identity.name,
-                "domain": manifest.capabilities.domain,
-                "input_intent": current_input,
-                "verified_output": verified_output,
-                "diagnostics": step_res.get("diagnostics"),
-            })
+
+            pipeline_results.append(
+                {
+                    "step": step_idx,
+                    "agent_id": manifest.identity.id,
+                    "agent_name": manifest.identity.name,
+                    "domain": manifest.capabilities.domain,
+                    "input_intent": current_input,
+                    "verified_output": verified_output,
+                    "diagnostics": step_res.get("diagnostics"),
+                }
+            )
 
             # Hand over verified output to the next agent in the guaranteed pipeline
             current_input = f"Process output from step {step_idx} ({manifest.identity.id}): {verified_output}"
@@ -68,7 +72,9 @@ class DeterministicPipelineOrchestrator:
     ) -> Dict[str, Any]:
         """Executes multiple agents concurrently over intent and computes voting consensus agreement."""
         if not manifest_paths:
-            raise AeroMeshDomainError("Consensus swarm requires at least one agent manifest.")
+            raise AeroMeshDomainError(
+                "Consensus swarm requires at least one agent manifest."
+            )
 
         agent_results = []
         output_votes: Dict[str, int] = {}
@@ -82,19 +88,27 @@ class DeterministicPipelineOrchestrator:
                 enable_diagnostics=enable_diagnostics,
             )
             v_output = res["execution_result"].get("verified_result", "").strip()
-            agent_results.append({
-                "agent_id": manifest.identity.id,
-                "verified_output": v_output,
-            })
+            agent_results.append(
+                {
+                    "agent_id": manifest.identity.id,
+                    "verified_output": v_output,
+                }
+            )
             output_votes[v_output] = output_votes.get(v_output, 0) + 1
 
         total_agents = len(manifest_paths)
-        majority_output, highest_votes = max(output_votes.items(), key=lambda item: item[1]) if output_votes else ("", 0)
+        majority_output, highest_votes = (
+            max(output_votes.items(), key=lambda item: item[1])
+            if output_votes
+            else ("", 0)
+        )
         consensus_ratio = highest_votes / max(1, total_agents)
         consensus_reached = consensus_ratio >= consensus_threshold
 
         return {
-            "swarm_status": "CONSENSUS_REACHED" if consensus_reached else "CONSENSUS_FAILED",
+            "swarm_status": "CONSENSUS_REACHED"
+            if consensus_reached
+            else "CONSENSUS_FAILED",
             "consensus_reached": consensus_reached,
             "consensus_ratio": consensus_ratio,
             "consensus_threshold": consensus_threshold,

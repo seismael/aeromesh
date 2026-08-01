@@ -1,0 +1,40 @@
+{
+  "workflow_version": "1.0.0",
+  "identity": {
+    "id": "x-trending-content-autopilot",
+    "name": "Hourly X/Twitter Trending Content Research, Verification, Publishing & Analytics Autopilot",
+    "description": "Researches trending tech topics, verifies sources, drafts engaging posts, publishes to X API, and analyzes engagement feedback.",
+    "schedule": "0 * * * *"
+  },
+  "steps": [
+    {
+      "id": "step-1-trend-researcher",
+      "agent_id": "ai-rag-pipeline-architect",
+      "intent": "Scrape and research top trending AI, tech, and developer topics on the web and social media for the current hour."
+    },
+    {
+      "id": "step-2-fact-verifier",
+      "agent_id": "enterprise-security-auditor",
+      "intent": "Fact-check the researched trending topics, verify citations and primary sources, and filter out rumors or unverified claims.",
+      "depends_on": ["step-1-trend-researcher"]
+    },
+    {
+      "id": "step-3-content-copywriter",
+      "agent_id": "ai-rag-pipeline-architect",
+      "intent": "Draft a high-converting, punchy 280-character post summarizing the verified trend with engaging hooks and hashtags.",
+      "depends_on": ["step-2-fact-verifier"]
+    },
+    {
+      "id": "step-4-x-publisher",
+      "agent_id": "multicloud-devops-orchestrator",
+      "intent": "Publish the approved post to X/Twitter API using account credentials and log transaction status.",
+      "depends_on": ["step-3-content-copywriter"]
+    },
+    {
+      "id": "step-5-engagement-analyst",
+      "agent_id": "postgres-performance-tuner",
+      "intent": "Query previous post interaction metrics (likes, retweets, replies, impressions) and update analytics feedback database.",
+      "depends_on": ["step-4-x-publisher"]
+    }
+  ]
+}

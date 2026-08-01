@@ -1,15 +1,15 @@
 """Aero Master Orchestrator Facade Service for AeroMesh."""
 
-import os
 import json
 from typing import Dict, Any, List, Union, Optional
 from aero.domain.errors import AeroMeshDomainError, ErrorCode, ExitCode
-from aero.domain.paths import get_aeromesh_agents_dir, resolve_agent_manifest_path
+from aero.domain.paths import resolve_agent_manifest_path
 from aero.services.runner import AeroAgentRunnerService
 from aero.services.pipeline import DeterministicPipelineOrchestrator
 from aero.services.workflow import AeroWorkflowEngine
 from aero.services.preflight import AeroInteractivePreflightEngine
 from aero.services.decomposition import AeroGoalDecompositionEngine
+
 
 class AeroMasterOrchestrator:
     """Unified Facade Master Orchestrator for all Agent, Pipeline, Mesh Workflow, and JIT Natural Language executions."""
@@ -21,8 +21,12 @@ class AeroMasterOrchestrator:
         decomposition_engine: Optional[AeroGoalDecompositionEngine] = None,
     ):
         self.runner = AeroAgentRunnerService()
-        self.pipeline_orchestrator = DeterministicPipelineOrchestrator(runner_service=self.runner)
-        self.workflow_engine = AeroWorkflowEngine(runner_service=self.runner, max_workers=max_workers)
+        self.pipeline_orchestrator = DeterministicPipelineOrchestrator(
+            runner_service=self.runner
+        )
+        self.workflow_engine = AeroWorkflowEngine(
+            runner_service=self.runner, max_workers=max_workers
+        )
         self.preflight = preflight_engine or AeroInteractivePreflightEngine()
         self.decomposition = decomposition_engine or AeroGoalDecompositionEngine()
 
@@ -62,8 +66,11 @@ class AeroMasterOrchestrator:
             return {
                 "mode": "PIPELINE",
                 "result": self.pipeline_orchestrator.execute_pipeline(
-                    resolved_targets, intent, non_interactive=non_interactive, enable_diagnostics=enable_diagnostics
-                )
+                    resolved_targets,
+                    intent,
+                    non_interactive=non_interactive,
+                    enable_diagnostics=enable_diagnostics,
+                ),
             }
 
         target_str = str(target).strip()
@@ -71,7 +78,12 @@ class AeroMasterOrchestrator:
         # Mode 2: Resolve agent file or ID via Dual Registry Resolution
         resolved_path = resolve_agent_manifest_path(target_str)
         if not resolved_path:
-            if target_str.endswith(".json") or target_str.endswith(".yaml") or "/" in target_str or "\\" in target_str:
+            if (
+                target_str.endswith(".json")
+                or target_str.endswith(".yaml")
+                or "/" in target_str
+                or "\\" in target_str
+            ):
                 raise AeroMeshDomainError(
                     f"Target file or agent ID not found: '{target_str}'",
                     ErrorCode.AMX_ERR_DISCOVERY_NO_MATCH,
@@ -82,11 +94,14 @@ class AeroMasterOrchestrator:
             checklist = self.decomposition.decompose_goal(target_str)
             if not non_interactive:
                 from aero.presentation.ui import AeroTerminalUI
+
                 AeroTerminalUI.render_requirements_checklist(checklist)
 
             if checklist.is_jit_synthesized:
                 # Execute JIT synthesized manifest
-                self.preflight.verify_agent_feasibility(checklist.synthesized_manifest, target_str)
+                self.preflight.verify_agent_feasibility(
+                    checklist.synthesized_manifest, target_str
+                )
                 res = self.runner.run_manifest_file(
                     None,
                     target_str,
@@ -97,14 +112,22 @@ class AeroMasterOrchestrator:
                 return {"mode": "JIT_AGENT", "result": res, "checklist": checklist}
             elif len(checklist.matched_manifests) > 1:
                 # Composite Swarm Pipeline
-                agent_paths = [str(resolve_agent_manifest_path(m_id)) for m_id in checklist.matched_agent_ids]
+                agent_paths = [
+                    str(resolve_agent_manifest_path(m_id))
+                    for m_id in checklist.matched_agent_ids
+                ]
                 res = self.pipeline_orchestrator.execute_pipeline(
-                    agent_paths, target_str, non_interactive=non_interactive, enable_diagnostics=enable_diagnostics
+                    agent_paths,
+                    target_str,
+                    non_interactive=non_interactive,
+                    enable_diagnostics=enable_diagnostics,
                 )
                 return {"mode": "PIPELINE", "result": res, "checklist": checklist}
             else:
                 # Matched Single Registry Agent
-                target_str = str(resolve_agent_manifest_path(checklist.matched_agent_ids[0]))
+                target_str = str(
+                    resolve_agent_manifest_path(checklist.matched_agent_ids[0])
+                )
 
         # Mode 4: Inspect JSON content to detect Workflow vs Single Agent
         try:
@@ -122,23 +145,34 @@ class AeroMasterOrchestrator:
             return {
                 "mode": "WORKFLOW",
                 "result": self.workflow_engine.execute_workflow(
-                    target_str, non_interactive=non_interactive, enable_diagnostics=enable_diagnostics
-                )
+                    target_str,
+                    non_interactive=non_interactive,
+                    enable_diagnostics=enable_diagnostics,
+                ),
             }
         else:
             # Mode 2B: Single Declarative Agent Manifest
-            if not intent:
+            if intent is None and (
+                target_str.endswith(".json")
+                or target_str.endswith(".yaml")
+                or "/" in target_str
+                or "\\" in target_str
+            ):
                 raise AeroMeshDomainError(
                     "Intent string is required for single agent execution.",
                     ErrorCode.AMX_ERR_SCHEMA_VIOLATION,
                     ExitCode.SCHEMA_VIOLATION,
                 )
+            intent = intent or target_str
             manifest = self.runner.parser.parse_file(target_str)
             self.preflight.verify_agent_feasibility(manifest, intent)
 
             return {
                 "mode": "AGENT",
                 "result": self.runner.run_manifest_file(
-                    target_str, intent, non_interactive=non_interactive, enable_diagnostics=enable_diagnostics
-                )
+                    target_str,
+                    intent,
+                    non_interactive=non_interactive,
+                    enable_diagnostics=enable_diagnostics,
+                ),
             }

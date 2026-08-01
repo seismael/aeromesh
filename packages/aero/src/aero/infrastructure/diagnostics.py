@@ -1,11 +1,11 @@
 """Real-Time Diagnostic Event Tracer & OpenTelemetry Metrics Collector."""
 
 import time
-import json
 import psutil
 import os
 from typing import Dict, Any, List
 from dataclasses import dataclass, asdict
+
 
 @dataclass
 class DiagnosticSpan:
@@ -17,6 +17,7 @@ class DiagnosticSpan:
     memory_mb: float
     metadata: Dict[str, Any]
 
+
 class AeroDiagnosticTracer:
     """Collects structured OTel diagnostic spans during agent lifecycle execution."""
 
@@ -26,7 +27,11 @@ class AeroDiagnosticTracer:
         self._span_counter = 0
 
     def record_span(
-        self, event_type: str, component: str, duration_ms: float, metadata: Dict[str, Any] = None
+        self,
+        event_type: str,
+        component: str,
+        duration_ms: float,
+        metadata: Dict[str, Any] = None,
     ) -> DiagnosticSpan:
         self._span_counter += 1
         process = psutil.Process(os.getpid())

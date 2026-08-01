@@ -11,10 +11,13 @@ import json
 from pathlib import Path
 from aero.domain.paths import get_aeromesh_home
 
+
 class AeroAgentRunnerService:
     """Orchestrates parsing, security resolution, driver execution, and checkpointing."""
 
-    def __init__(self, parser: ManifestParser = None, vault: ZeroTrustVaultResolver = None):
+    def __init__(
+        self, parser: ManifestParser = None, vault: ZeroTrustVaultResolver = None
+    ):
         self.parser = parser or ManifestParser()
         self.vault = vault or ZeroTrustVaultResolver()
 
@@ -69,9 +72,11 @@ class AeroAgentRunnerService:
 
         if env_overrides:
             self.vault.override_env.update(env_overrides)
-            
+
         t0 = time.time()
-        credentials = self.vault.resolve_requirements(manifest.providers, non_interactive=non_interactive)
+        credentials = self.vault.resolve_requirements(
+            manifest.providers, non_interactive=non_interactive
+        )
         if tracer.enabled:
             tracer.record_span(
                 event_type="RESOLVE_VAULT",

@@ -3,6 +3,7 @@
 from dataclasses import dataclass, field
 from typing import List, Optional, Dict, Any
 
+
 @dataclass(frozen=True)
 class AgentIdentity:
     id: str
@@ -11,6 +12,7 @@ class AgentIdentity:
     author: Optional[str] = None
     license: str = "MIT"
     funding: Optional[Dict[str, Any]] = None
+
 
 @dataclass(frozen=True)
 class AgentCapabilities:
@@ -22,6 +24,7 @@ class AgentCapabilities:
     input_contract: Optional[Dict[str, Any]] = None
     output_contract: Optional[Dict[str, Any]] = None
 
+
 @dataclass(frozen=True)
 class CognitiveRuntimeProfile:
     persona: str
@@ -29,6 +32,7 @@ class CognitiveRuntimeProfile:
     driver: str = "Driver.LangGraph"
     memory_policy: str = "CVM_LRU_PAGING"
     checkpoint_policy: str = "ON_STEP"
+
 
 @dataclass(frozen=True)
 class CapabilityProviderRequirement:
@@ -46,17 +50,20 @@ class CapabilityProviderRequirement:
     agent_id: Optional[str] = None
     delegation_purpose: Optional[str] = None
 
+
 @dataclass(frozen=True)
 class SwarmTopology:
     pattern: str = "hierarchical"
     consensus_threshold: Optional[float] = None
     routing_key: Optional[str] = None
 
+
 @dataclass(frozen=True)
 class ObservabilityProfile:
     trace_level: str = "info"
     cost_limit_usd: Optional[float] = None
     max_execution_steps: Optional[int] = None
+
 
 @dataclass(frozen=True)
 class AgentManifest:

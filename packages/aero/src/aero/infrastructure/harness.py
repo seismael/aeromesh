@@ -3,20 +3,31 @@
 from typing import Dict, Any, List, Optional
 from aero.infrastructure.mcp import McpToolDeclaration
 
+
 class MockMcpDriver:
     """Mock MCP Stdio Driver for deterministic unit testing without spawning OS subprocesses."""
 
     def __init__(self, registered_tools: Optional[List[McpToolDeclaration]] = None):
         self.registered_tools = registered_tools or [
-            McpToolDeclaration(name="execute_query", description="Execute SQL query", input_schema={"type": "object"}),
-            McpToolDeclaration(name="explain_query", description="Explain SQL query", input_schema={"type": "object"}),
+            McpToolDeclaration(
+                name="execute_query",
+                description="Execute SQL query",
+                input_schema={"type": "object"},
+            ),
+            McpToolDeclaration(
+                name="explain_query",
+                description="Explain SQL query",
+                input_schema={"type": "object"},
+            ),
         ]
         self.is_spawned = False
 
     def spawn(self) -> None:
         self.is_spawned = True
 
-    def send_request(self, method: str, params: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+    def send_request(
+        self, method: str, params: Optional[Dict[str, Any]] = None
+    ) -> Dict[str, Any]:
         if method == "tools/list":
             return {
                 "jsonrpc": "2.0",
@@ -39,7 +50,9 @@ class MockMcpDriver:
                 "jsonrpc": "2.0",
                 "id": 2,
                 "result": {
-                    "content": [{"type": "text", "text": f"Mock result for tool {tname}"}],
+                    "content": [
+                        {"type": "text", "text": f"Mock result for tool {tname}"}
+                    ],
                     "isError": False,
                 },
             }

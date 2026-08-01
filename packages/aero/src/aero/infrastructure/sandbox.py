@@ -1,9 +1,9 @@
 """Network Proxy Sandbox Firewall Engine for DAM v3.0 allowed_domains Enforcement."""
 
-import re
 from urllib.parse import urlparse
 from typing import List, Optional
 from aero.domain.errors import AeroMeshDomainError, ErrorCode, ExitCode
+
 
 class NetworkSandboxFirewall:
     """Enforces domain allowlisting rules declared in agent manifests to prevent unauthorized data exfiltration."""
@@ -14,7 +14,11 @@ class NetworkSandboxFirewall:
     def _extract_domain(self, url_or_domain: str) -> str:
         """Extracts normalized hostname from URL or raw domain string."""
         target = url_or_domain.strip()
-        if target.startswith("http://") or target.startswith("https://") or "://" in target:
+        if (
+            target.startswith("http://")
+            or target.startswith("https://")
+            or "://" in target
+        ):
             parsed = urlparse(target)
             hostname = parsed.hostname or target
         else:
@@ -35,7 +39,7 @@ class NetworkSandboxFirewall:
 
         for pattern in self.allowed_domains:
             pattern_clean = pattern.strip().lower()
-            
+
             # Strip scheme if declared in pattern
             if "://" in pattern_clean:
                 pattern_clean = urlparse(pattern_clean).hostname or pattern_clean

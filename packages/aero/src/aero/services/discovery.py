@@ -1,14 +1,17 @@
 """2-Tier Search Index & Cognitive Discovery Engine Service for AeroMesh."""
 
-import os
 import json
 from pathlib import Path
 from dataclasses import dataclass
-from typing import List, Optional, Dict, Any
+from typing import List, Optional
 
-from aero.domain.errors import AeroMeshDomainError, ErrorCode, ExitCode
-from aero.domain.paths import get_aeromesh_agents_dir, get_aeromesh_workspace_registry_dir, get_aeromesh_home
+from aero.domain.paths import (
+    get_aeromesh_agents_dir,
+    get_aeromesh_workspace_registry_dir,
+    get_aeromesh_home,
+)
 from aero.infrastructure.parser import ManifestParser
+
 
 @dataclass(frozen=True)
 class RegistryIndexRecord:
@@ -22,12 +25,14 @@ class RegistryIndexRecord:
     path: str
     sha256: Optional[str] = None
 
+
 @dataclass(frozen=True)
 class SearchResult:
     record: RegistryIndexRecord
     match_score: float
     search_tier: str  # "TIER_1_VECTOR_INDEX" or "TIER_2_COGNITIVE_MATCHER"
     rationale: str
+
 
 class AeroDiscoveryEngine:
     """Implements 2-Tier Agent Discovery: Tier 1 Fast Sub-5ms Vector/Keyword Search + Tier 2 Cognitive Evaluator."""
@@ -40,10 +45,15 @@ class AeroDiscoveryEngine:
         cache_dir.mkdir(parents=True, exist_ok=True)
         return cache_dir / "index.json"
 
-    def build_registry_index(self, extra_paths: Optional[List[Path]] = None, use_cache: bool = True) -> List[RegistryIndexRecord]:
+    def build_registry_index(
+        self, extra_paths: Optional[List[Path]] = None, use_cache: bool = True
+    ) -> List[RegistryIndexRecord]:
         """Scans local AppData store and workspace registry to build an in-memory index, backed by AppData index.json cache."""
         records: List[RegistryIndexRecord] = []
-        search_dirs: List[Path] = [get_aeromesh_agents_dir(), get_aeromesh_workspace_registry_dir()]
+        search_dirs: List[Path] = [
+            get_aeromesh_agents_dir(),
+            get_aeromesh_workspace_registry_dir(),
+        ]
 
         if extra_paths:
             search_dirs.extend(extra_paths)
@@ -98,7 +108,9 @@ class AeroDiscoveryEngine:
 
         return records
 
-    def search_tier1_fast(self, intent: str, records: List[RegistryIndexRecord], top_k: int = 3) -> List[SearchResult]:
+    def search_tier1_fast(
+        self, intent: str, records: List[RegistryIndexRecord], top_k: int = 3
+    ) -> List[SearchResult]:
         """Tier 1: Fast Sub-5ms Keyword & Token Similarity Matching."""
         intent_lower = intent.lower()
         intent_tokens = set(intent_lower.split())
@@ -121,7 +133,9 @@ class AeroDiscoveryEngine:
                 score += 0.2 * len(tag_matches)
                 matched_terms.append(f"Tags match: {', '.join(tag_matches)}")
 
-            desc_tokens = set(rec.short_description.lower().split()) | set(rec.evaluation_trigger.lower().split())
+            desc_tokens = set(rec.short_description.lower().split()) | set(
+                rec.evaluation_trigger.lower().split()
+            )
             common_tokens = intent_tokens.intersection(desc_tokens)
             if common_tokens:
                 token_ratio = len(common_tokens) / max(1, len(intent_tokens))

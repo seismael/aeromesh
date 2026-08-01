@@ -1,27 +1,30 @@
 """Live Model Context Protocol (MCP) Stdio Subprocess & JSON-RPC 2.0 Transport Driver Engine."""
 
 import os
-import sys
 import json
-import time
 import subprocess
 from dataclasses import dataclass, field
 from typing import Dict, Any, List, Optional
 from aero.domain.errors import AeroMeshDomainError, ErrorCode, ExitCode
 
+
 @dataclass
 class McpToolDeclaration:
     """Represents a tool exposed by an MCP server."""
+
     name: str
     description: str
     input_schema: Dict[str, Any] = field(default_factory=dict)
 
+
 @dataclass
 class McpToolResult:
     """Represents the execution result of an MCP tool call."""
+
     tool_name: str
     content: str
     is_error: bool = False
+
 
 class McpStdioDriver:
     """Manages stdio subprocess pipes and JSON-RPC 2.0 protocol exchange with MCP tool servers."""
@@ -63,7 +66,9 @@ class McpStdioDriver:
                 ExitCode.MCP_SPAWN_FAILED,
             )
 
-    def _send_request(self, method: str, params: Dict[str, Any] = None) -> Dict[str, Any]:
+    def _send_request(
+        self, method: str, params: Dict[str, Any] = None
+    ) -> Dict[str, Any]:
         if not self.proc or self.proc.poll() is not None:
             raise AeroMeshDomainError(
                 f"MCP server subprocess '{self.command}' is not running.",
@@ -127,7 +132,7 @@ class McpStdioDriver:
             "clientInfo": {"name": "AeroEngine", "version": "1.0.0"},
         }
         res = self._send_request("initialize", init_params)
-        
+
         # Send initialized notification if needed
         notif = {"jsonrpc": "2.0", "method": "notifications/initialized"}
         try:
@@ -154,7 +159,9 @@ class McpStdioDriver:
             )
         return declarations
 
-    def call_tool(self, tool_name: str, arguments: Dict[str, Any] = None) -> McpToolResult:
+    def call_tool(
+        self, tool_name: str, arguments: Dict[str, Any] = None
+    ) -> McpToolResult:
         """Executes a specific MCP tool via tools/call and returns McpToolResult."""
         params = {
             "name": tool_name,
@@ -194,10 +201,13 @@ class McpStdioDriver:
                     pass
             self.proc = None
 
+
 class McpSseDriver:
     """Manages HTTP Server-Sent Events (SSE) stream transport daemons for remote cloud-hosted MCP servers."""
 
-    def __init__(self, uri: str, bearer_token: Optional[str] = None, timeout_sec: float = 30.0):
+    def __init__(
+        self, uri: str, bearer_token: Optional[str] = None, timeout_sec: float = 30.0
+    ):
         self.uri = uri
         self.bearer_token = bearer_token
         self.timeout_sec = timeout_sec
@@ -210,16 +220,34 @@ class McpSseDriver:
     def list_tools(self) -> List[McpToolDeclaration]:
         """Queries remote SSE endpoint for tool declarations."""
         if not self.is_connected:
-            raise AeroMeshDomainError("SSE MCP driver is not connected.", ErrorCode.AMX_ERR_MCP_SPAWN_FAILED, ExitCode.MCP_SPAWN_FAILED)
+            raise AeroMeshDomainError(
+                "SSE MCP driver is not connected.",
+                ErrorCode.AMX_ERR_MCP_SPAWN_FAILED,
+                ExitCode.MCP_SPAWN_FAILED,
+            )
         return [
-            McpToolDeclaration(name="remote_cloud_query", description="Remote Cloud MCP Service Query", input_schema={"type": "object"})
+            McpToolDeclaration(
+                name="remote_cloud_query",
+                description="Remote Cloud MCP Service Query",
+                input_schema={"type": "object"},
+            )
         ]
 
-    def call_tool(self, tool_name: str, arguments: Dict[str, Any] = None) -> McpToolResult:
+    def call_tool(
+        self, tool_name: str, arguments: Dict[str, Any] = None
+    ) -> McpToolResult:
         """Sends tool call request over SSE HTTP POST transport."""
         if not self.is_connected:
-            raise AeroMeshDomainError("SSE MCP driver is not connected.", ErrorCode.AMX_ERR_MCP_SPAWN_FAILED, ExitCode.MCP_SPAWN_FAILED)
-        return McpToolResult(tool_name=tool_name, content=f"SSE Remote result for tool '{tool_name}' at endpoint '{self.uri}'", is_error=False)
+            raise AeroMeshDomainError(
+                "SSE MCP driver is not connected.",
+                ErrorCode.AMX_ERR_MCP_SPAWN_FAILED,
+                ExitCode.MCP_SPAWN_FAILED,
+            )
+        return McpToolResult(
+            tool_name=tool_name,
+            content=f"SSE Remote result for tool '{tool_name}' at endpoint '{self.uri}'",
+            is_error=False,
+        )
 
     def close(self) -> None:
         """Disconnects SSE transport."""

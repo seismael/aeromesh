@@ -1,8 +1,7 @@
 """Rich Terminal UI Layout & Event Presentation Renderer for Aero Mesh."""
 
 import sys
-import getpass
-from typing import Dict, Any, List, Tuple, Optional
+from typing import Dict, Any, List, Tuple
 from rich.console import Console
 from rich.panel import Panel
 from rich.table import Table
@@ -22,6 +21,7 @@ if sys.platform == "win32":
 
 console = Console()
 
+
 class AeroTerminalUI:
     """Renders formatted Rich terminal banners, SLA summaries, and interactive prompts."""
 
@@ -31,7 +31,10 @@ class AeroTerminalUI:
         table.add_column(style="bold cyan", justify="left")
         table.add_column(style="white", justify="left")
 
-        table.add_row("Agent Identifier  ", f"{manifest.identity.id} (v{manifest.identity.version})")
+        table.add_row(
+            "Agent Identifier  ",
+            f"{manifest.identity.id} (v{manifest.identity.version})",
+        )
         table.add_row("Domain            ", manifest.capabilities.domain)
         table.add_row("CDI Driver        ", manifest.cognitive_runtime.driver)
 
@@ -39,14 +42,20 @@ class AeroTerminalUI:
             table,
             title="[bold green]🚀 Aero Agent Engine (aero / amx)[/bold green]",
             border_style="cyan",
-            expand=False
+            expand=False,
         )
         console.print(panel)
 
     @staticmethod
-    def prompt_credential_approval(key_id: str, existing_val: str, kind: str = "credential", input_fn=None) -> Tuple[str, bool]:
+    def prompt_credential_approval(
+        key_id: str, existing_val: str, kind: str = "credential", input_fn=None
+    ) -> Tuple[str, bool]:
         """Asks human user for explicit approval to use an existing key or input a new key."""
-        masked_val = existing_val[:4] + "****" + existing_val[-4:] if len(existing_val) > 8 else "****"
+        masked_val = (
+            existing_val[:4] + "****" + existing_val[-4:]
+            if len(existing_val) > 8
+            else "****"
+        )
         panel = Panel(
             f"[bold yellow]🔑 Found Environment Credential:[/bold yellow] [bold white]{key_id}[/bold white] (Value: [cyan]{masked_val}[/cyan])\n\n"
             f"[bold white]Options:[/bold white]\n"
@@ -55,7 +64,7 @@ class AeroTerminalUI:
             f"  [bold red][3][/bold red] Reject and abort\n",
             title="[bold yellow]Explicit User Key Approval[/bold yellow]",
             border_style="yellow",
-            expand=False
+            expand=False,
         )
         console.print(panel)
 
@@ -70,21 +79,39 @@ class AeroTerminalUI:
             return "", False
 
     @staticmethod
-    def prompt_provider_selection(providers: List[Dict[str, str]], input_fn=None) -> Tuple[str, str]:
+    def prompt_provider_selection(
+        providers: List[Dict[str, str]], input_fn=None
+    ) -> Tuple[str, str]:
         """Prompts human user to select default LLM model provider and enter API key."""
-        lines = ["[bold yellow]⚙️ No Default Model Provider Configured.[/bold yellow]\n", "Select a Model Provider:"]
+        lines = [
+            "[bold yellow]⚙️ No Default Model Provider Configured.[/bold yellow]\n",
+            "Select a Model Provider:",
+        ]
         for idx, prov in enumerate(providers, 1):
-            lines.append(f"  [bold green][{idx}][/bold green] {prov['name']} ({prov['env_var']})")
+            lines.append(
+                f"  [bold green][{idx}][/bold green] {prov['name']} ({prov['env_var']})"
+            )
 
-        panel = Panel("\n".join(lines), title="[bold cyan]LLM Model Provider Selection[/bold cyan]", border_style="cyan", expand=False)
+        panel = Panel(
+            "\n".join(lines),
+            title="[bold cyan]LLM Model Provider Selection[/bold cyan]",
+            border_style="cyan",
+            expand=False,
+        )
         console.print(panel)
 
         fn = input_fn or input
         choice_str = fn("Select provider number (default 1): ").strip()
-        choice_idx = int(choice_str) - 1 if choice_str.isdigit() and 1 <= int(choice_str) <= len(providers) else 0
+        choice_idx = (
+            int(choice_str) - 1
+            if choice_str.isdigit() and 1 <= int(choice_str) <= len(providers)
+            else 0
+        )
 
         selected_prov = providers[choice_idx]
-        console.print(f"[bold green]Selected Provider:[/bold green] {selected_prov['name']}")
+        console.print(
+            f"[bold green]Selected Provider:[/bold green] {selected_prov['name']}"
+        )
         api_key = fn(f"Enter API Key for {selected_prov['name']}: ").strip()
 
         return selected_prov["id"], api_key
@@ -98,11 +125,18 @@ class AeroTerminalUI:
         elif hasattr(summary, "get_spans"):
             spans = summary.get_spans()
         elif hasattr(summary, "spans"):
-            spans = [s if isinstance(s, dict) else {"event_type": str(s)} for s in summary.spans]
+            spans = [
+                s if isinstance(s, dict) else {"event_type": str(s)}
+                for s in summary.spans
+            ]
         else:
             spans = []
 
-        table = Table(title="📊 Aero Engine Diagnostic Tracing Spans", show_header=True, header_style="bold magenta")
+        table = Table(
+            title="📊 Aero Engine Diagnostic Tracing Spans",
+            show_header=True,
+            header_style="bold magenta",
+        )
         table.add_column("Span ID", style="cyan")
         table.add_column("Component", style="green")
         table.add_column("Latency (ms)", justify="right", style="yellow")
@@ -113,7 +147,7 @@ class AeroTerminalUI:
                 s.get("event_type", "SPAN"),
                 s.get("component", "Core"),
                 f"{s.get('duration_ms', 0):.2f}",
-                f"{s.get('memory_mb', 0):.2f}"
+                f"{s.get('memory_mb', 0):.2f}",
             )
         console.print(table)
         console.print(f"[bold cyan]Total Spans: {len(spans)}[/bold cyan]")
@@ -144,19 +178,30 @@ class AeroTerminalUI:
         table.add_column("Category", style="yellow")
         table.add_column("Details", style="green")
 
-        mode_str = "JIT Synthesized Agent" if checklist.is_jit_synthesized else "Discovered Registry Swarm"
+        mode_str = (
+            "JIT Synthesized Agent"
+            if checklist.is_jit_synthesized
+            else "Discovered Registry Swarm"
+        )
         table.add_row("Execution Mode", mode_str)
         table.add_row("Agents", ", ".join(checklist.matched_agent_ids))
 
         req_keys = [r.id for r in checklist.required_credentials]
-        table.add_row("Required Credentials", ", ".join(req_keys) if req_keys else "None (Public API / Offline)")
+        table.add_row(
+            "Required Credentials",
+            ", ".join(req_keys) if req_keys else "None (Public API / Offline)",
+        )
 
         console.print(table)
 
     @staticmethod
     def render_search_results(results: List[Any]) -> None:
         """Renders 2-Tier Search Index results in a Rich table layout."""
-        table = Table(title="🔍 AeroMesh 2-Tier Agent Search Index", show_header=True, header_style="bold cyan")
+        table = Table(
+            title="🔍 AeroMesh 2-Tier Agent Search Index",
+            show_header=True,
+            header_style="bold cyan",
+        )
         table.add_column("Agent ID", style="bold green")
         table.add_column("Score", justify="right", style="yellow")
         table.add_column("Tier", style="magenta")
@@ -178,7 +223,11 @@ class AeroTerminalUI:
     def render_security_audit(audit_res: Dict[str, Any]) -> None:
         """Renders static security scanner results and Sigstore cryptographic attestations."""
         is_sec = audit_res.get("is_secure", False)
-        status_str = "[bold green]SECURE ✅[/bold green]" if is_sec else "[bold red]VULNERABLE ❌[/bold red]"
+        status_str = (
+            "[bold green]SECURE ✅[/bold green]"
+            if is_sec
+            else "[bold red]VULNERABLE ❌[/bold red]"
+        )
 
         lines = [
             f"[bold cyan]Agent ID:[/bold cyan] {audit_res.get('agent_id')} (v{audit_res.get('version')})",
@@ -192,9 +241,14 @@ class AeroTerminalUI:
             for issue in issues:
                 lines.append(f"  • {issue}")
         else:
-            lines.append("[bold green]Zero security vulnerabilities detected.[/bold green]")
+            lines.append(
+                "[bold green]Zero security vulnerabilities detected.[/bold green]"
+            )
 
-        panel = Panel("\n".join(lines), title="[bold magenta]🛡️ Guardian Security Attestation Audit[/bold magenta]", border_style="magenta", expand=False)
+        panel = Panel(
+            "\n".join(lines),
+            title="[bold magenta]🛡️ Guardian Security Attestation Audit[/bold magenta]",
+            border_style="magenta",
+            expand=False,
+        )
         console.print(panel)
-
-

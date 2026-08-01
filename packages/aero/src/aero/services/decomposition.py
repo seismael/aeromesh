@@ -1,10 +1,8 @@
 """Goal Decomposition Engine, Upfront Requirement Checklist & JIT Agent Manifest Synthesizer."""
 
-import os
-import json
 import re
 from dataclasses import dataclass, field
-from typing import List, Dict, Any, Optional, Tuple
+from typing import List, Optional, Tuple
 from aero.domain.models import (
     AgentManifest,
     AgentIdentity,
@@ -12,26 +10,36 @@ from aero.domain.models import (
     CognitiveRuntimeProfile,
     CapabilityProviderRequirement,
 )
-from aero.domain.paths import get_aeromesh_workspace_registry_dir, get_aeromesh_agents_dir
+from aero.domain.paths import (
+    get_aeromesh_workspace_registry_dir,
+    get_aeromesh_agents_dir,
+)
 from aero.infrastructure.parser import ManifestParser
+
 
 @dataclass
 class RequirementsChecklist:
     """Upfront structured requirement checklist for a user goal."""
+
     goal: str
     matched_agent_ids: List[str] = field(default_factory=list)
     matched_manifests: List[AgentManifest] = field(default_factory=list)
-    required_credentials: List[CapabilityProviderRequirement] = field(default_factory=list)
+    required_credentials: List[CapabilityProviderRequirement] = field(
+        default_factory=list
+    )
     is_jit_synthesized: bool = False
     synthesized_manifest: Optional[AgentManifest] = None
+
 
 @dataclass
 class FallbackPlan:
     """Fallback execution plan when a user rejects a required credential."""
+
     is_degraded: bool
     active_agent_id: str
     description: str
     manifest: AgentManifest
+
 
 class AeroGoalDecompositionEngine:
     """Decomposes raw natural language intents into agent swarms, requirement checklists, and JIT manifests."""
@@ -104,6 +112,7 @@ class AeroGoalDecompositionEngine:
                 last_error = e
 
         from aero.domain.errors import AeroMeshDomainError, ErrorCode, ExitCode
+
         raise AeroMeshDomainError(
             f"JIT Builder failed to synthesize valid manifest after {max_retries} attempts: {str(last_error)}",
             ErrorCode.AMX_ERR_JIT_BUILD_FAILED,
@@ -129,27 +138,45 @@ class AeroGoalDecompositionEngine:
             domain_handled = False
             if "postgres" in m_id or "postgres" in m_domain:
                 domain_handled = True
-                if any(k in goal_lower for k in ["postgres", "sql", "db", "query", "tuner"]):
+                if any(
+                    k in goal_lower for k in ["postgres", "sql", "db", "query", "tuner"]
+                ):
                     matched = True
             elif "security" in m_id or "security" in m_domain:
                 domain_handled = True
-                if any(k in goal_lower for k in ["security", "audit", "secret", "github", "cve"]):
+                if any(
+                    k in goal_lower
+                    for k in ["security", "audit", "secret", "github", "cve"]
+                ):
                     matched = True
             elif "devops" in m_id:
                 domain_handled = True
-                if any(k in goal_lower for k in ["devops", "aws", "kubernetes", "eks", "helm"]):
+                if any(
+                    k in goal_lower
+                    for k in ["devops", "aws", "kubernetes", "eks", "helm"]
+                ):
                     matched = True
             elif "fintech" in m_id or "payment" in m_id:
                 domain_handled = True
-                if any(k in goal_lower for k in ["stripe", "plaid", "fintech", "payout", "payment"]):
+                if any(
+                    k in goal_lower
+                    for k in ["stripe", "plaid", "fintech", "payout", "payment"]
+                ):
                     matched = True
             elif "rag" in m_id or "pinecone" in m_id:
                 domain_handled = True
-                if any(k in goal_lower for k in ["rag", "pinecone", "openai", "index", "vector"]):
+                if any(
+                    k in goal_lower
+                    for k in ["rag", "pinecone", "openai", "index", "vector"]
+                ):
                     matched = True
 
             if not domain_handled:
-                if m_domain in goal_lower or m_trigger in goal_lower or any(t in goal_lower for t in m_tags):
+                if (
+                    m_domain in goal_lower
+                    or m_trigger in goal_lower
+                    or any(t in goal_lower for t in m_tags)
+                ):
                     matched = True
 
             if matched and manifest.identity.id not in matched_ids:
@@ -157,13 +184,82 @@ class AeroGoalDecompositionEngine:
                 matched_manifests.append(manifest)
                 all_reqs.extend(manifest.providers)
 
+        # Check for compound goals with conjunctions (and, commas, semicolons)
+        sub_goals = [
+            s.strip()
+            for s in re.split(r"\b(?:and|then|also)\b|[,;]", goal, flags=re.IGNORECASE)
+            if len(s.strip()) > 5
+        ]
+        if len(sub_goals) > 1:
+            for sub in sub_goals:
+                sub_lower = sub.lower()
+                matched_sub = False
+                for fpath, manifest in available:
+                    m_id = manifest.identity.id.lower()
+                    m_domain = manifest.capabilities.domain.lower()
+                    m_tags = [t.lower() for t in manifest.capabilities.tags]
+
+                    if (
+                        (
+                            "postgres" in m_id
+                            and any(
+                                k in sub_lower
+                                for k in ["postgres", "sql", "db", "query"]
+                            )
+                        )
+                        or (
+                            "security" in m_id
+                            and any(
+                                k in sub_lower
+                                for k in ["security", "audit", "secret", "github"]
+                            )
+                        )
+                        or (
+                            "devops" in m_id
+                            and any(
+                                k in sub_lower
+                                for k in ["devops", "aws", "kubernetes", "eks"]
+                            )
+                        )
+                        or (
+                            "fintech" in m_id
+                            and any(
+                                k in sub_lower
+                                for k in ["stripe", "plaid", "fintech", "payment"]
+                            )
+                        )
+                        or (
+                            "rag" in m_id
+                            and any(
+                                k in sub_lower
+                                for k in ["rag", "pinecone", "openai", "vector"]
+                            )
+                        )
+                    ):
+                        if manifest.identity.id not in matched_ids:
+                            matched_ids.append(manifest.identity.id)
+                            matched_manifests.append(manifest)
+                            all_reqs.extend(manifest.providers)
+                        matched_sub = True
+                        break
+
+                if not matched_sub:
+                    # Synthesize JIT agent for unhandled sub-goal
+                    jit_m = self.synthesize_jit_manifest(sub)
+                    if jit_m.identity.id not in matched_ids:
+                        matched_ids.append(jit_m.identity.id)
+                        matched_manifests.append(jit_m)
+                        all_reqs.extend(jit_m.providers)
+
         if matched_manifests:
             return RequirementsChecklist(
                 goal=goal,
                 matched_agent_ids=matched_ids,
                 matched_manifests=matched_manifests,
                 required_credentials=all_reqs,
-                is_jit_synthesized=False,
+                is_jit_synthesized=any(
+                    m.identity.id.startswith("jit-") for m in matched_manifests
+                ),
             )
 
         # Fallback: Synthesize JIT Agent Manifest
@@ -177,10 +273,12 @@ class AeroGoalDecompositionEngine:
             synthesized_manifest=jit_manifest,
         )
 
-    def negotiate_fallback(self, checklist: RequirementsChecklist, rejected_key_id: str) -> FallbackPlan:
+    def negotiate_fallback(
+        self, checklist: RequirementsChecklist, rejected_key_id: str
+    ) -> FallbackPlan:
         """Constructs a degraded offline fallback execution plan when user rejects a credential."""
         slug = f"degraded-fallback-{rejected_key_id.lower()}"
-        
+
         identity = AgentIdentity(
             id=slug,
             name=f"Degraded Fallback Agent ({rejected_key_id} Rejected)",

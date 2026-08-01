@@ -6,19 +6,30 @@ import asyncio
 import jsonschema
 from typing import Dict, Any, List
 from concurrent.futures import ThreadPoolExecutor
-from pathlib import Path
 from aero.domain.errors import AeroMeshDomainError, ErrorCode, ExitCode
-from aero.domain.paths import get_aeromesh_agents_dir, get_aeromesh_home, resolve_agent_manifest_path
+from aero.domain.paths import get_aeromesh_home, resolve_agent_manifest_path
 from aero.services.runner import AeroAgentRunnerService
 
 SCHEMA_PATH = os.path.abspath(
-    os.path.join(os.path.dirname(__file__), "..", "..", "..", "..", "..", "schemas", "declarative-workflow.schema.json")
+    os.path.join(
+        os.path.dirname(__file__),
+        "..",
+        "..",
+        "..",
+        "..",
+        "..",
+        "schemas",
+        "declarative-workflow.schema.json",
+    )
 )
+
 
 class AeroWorkflowEngine:
     """Orchestrates Declarative Mesh Workflows (DWM v1.0), Concurrent Worker Pools, and Cron Schedules."""
 
-    def __init__(self, runner_service: AeroAgentRunnerService = None, max_workers: int = 10):
+    def __init__(
+        self, runner_service: AeroAgentRunnerService = None, max_workers: int = 10
+    ):
         self.runner = runner_service or AeroAgentRunnerService()
         self.max_workers = max_workers
         self.executor = ThreadPoolExecutor(max_workers=max_workers)
@@ -132,7 +143,9 @@ class AeroWorkflowEngine:
         workflow = self.validate_workflow_file(workflow_path)
         steps = workflow["steps"]
 
-        completed_events: Dict[str, asyncio.Event] = {step["id"]: asyncio.Event() for step in steps}
+        completed_events: Dict[str, asyncio.Event] = {
+            step["id"]: asyncio.Event() for step in steps
+        }
         step_outputs: Dict[str, str] = {}
         step_results: List[Dict[str, Any]] = []
 
@@ -173,12 +186,14 @@ class AeroWorkflowEngine:
             verified_output = step_res["execution_result"].get("verified_result", "")
             step_outputs[step_id] = verified_output
 
-            step_results.append({
-                "step_id": step_id,
-                "manifest_path": manifest_path,
-                "verified_output": verified_output,
-                "diagnostics": step_res.get("diagnostics"),
-            })
+            step_results.append(
+                {
+                    "step_id": step_id,
+                    "manifest_path": manifest_path,
+                    "verified_output": verified_output,
+                    "diagnostics": step_res.get("diagnostics"),
+                }
+            )
 
             # Signal that this step is complete to dependent steps
             completed_events[step_id].set()
@@ -211,15 +226,20 @@ class AeroWorkflowEngine:
 
         if loop.is_running():
             import concurrent.futures
+
             with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
                 future = pool.submit(
                     asyncio.run,
-                    self.execute_workflow_async(workflow_path, non_interactive, enable_diagnostics)
+                    self.execute_workflow_async(
+                        workflow_path, non_interactive, enable_diagnostics
+                    ),
                 )
                 return future.result()
         else:
             return loop.run_until_complete(
-                self.execute_workflow_async(workflow_path, non_interactive, enable_diagnostics)
+                self.execute_workflow_async(
+                    workflow_path, non_interactive, enable_diagnostics
+                )
             )
 
     def schedule_workflow(self, workflow_path: str) -> Dict[str, Any]:
@@ -276,10 +296,18 @@ class AeroWorkflowEngine:
             wf_path = wf_info.get("workflow_path")
             if wf_path and os.path.exists(wf_path):
                 try:
-                    res = self.execute_workflow(wf_path, non_interactive=True, enable_diagnostics=enable_diagnostics)
-                    results.append({"workflow_id": wf_id, "status": "SUCCESS", "res": res})
+                    res = self.execute_workflow(
+                        wf_path,
+                        non_interactive=True,
+                        enable_diagnostics=enable_diagnostics,
+                    )
+                    results.append(
+                        {"workflow_id": wf_id, "status": "SUCCESS", "res": res}
+                    )
                 except Exception as e:
-                    results.append({"workflow_id": wf_id, "status": "FAILED", "error": str(e)})
+                    results.append(
+                        {"workflow_id": wf_id, "status": "FAILED", "error": str(e)}
+                    )
 
         return {
             "daemon_status": "POLLING_CYCLE_COMPLETE",

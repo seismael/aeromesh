@@ -8,9 +8,8 @@ from aero.domain.errors import AeroMeshDomainError, ErrorCode, ExitCode
 from aero.domain.models import CapabilityProviderRequirement
 from aero.domain.paths import (
     get_aeromesh_home,
-    get_aeromesh_config_file,
-    get_aeromesh_credentials_file,
 )
+
 
 class ZeroTrustVaultResolver:
     """Resolves secret credentials for manifest requirements across Vault layers with Explicit User Approval."""
@@ -20,7 +19,7 @@ class ZeroTrustVaultResolver:
         override_env: Dict[str, str] = None,
         config_dir: Union[str, Path] = None,
         prompt_fn: Callable[[str, str], str] = None,
-        approval_fn: Callable[[str, str, str], Tuple[str, bool]] = None
+        approval_fn: Callable[[str, str, str], Tuple[str, bool]] = None,
     ):
         self.override_env = override_env or {}
         self.config_dir = Path(config_dir) if config_dir else get_aeromesh_home()
@@ -65,7 +64,9 @@ class ZeroTrustVaultResolver:
         return self._desktop_tokens_cache
 
     def resolve_requirements(
-        self, providers: List[CapabilityProviderRequirement], non_interactive: bool = False
+        self,
+        providers: List[CapabilityProviderRequirement],
+        non_interactive: bool = False,
     ) -> Dict[str, str]:
         resolved_secrets = {}
         config_secrets = self._load_json_file(self.config_file)
@@ -76,7 +77,7 @@ class ZeroTrustVaultResolver:
             if provider.type == "credential":
                 key_id = provider.id
                 kind = getattr(provider, "kind", "credential")
-                
+
                 # Check for existing discovered value
                 existing_val = (
                     self.override_env.get(key_id)
@@ -93,10 +94,17 @@ class ZeroTrustVaultResolver:
                     else:
                         # Interactive human session: REQUIRE EXPLICIT USER APPROVAL
                         if self.approval_fn:
-                            approved_val, is_approved = self.approval_fn(key_id, existing_val, kind)
+                            approved_val, is_approved = self.approval_fn(
+                                key_id, existing_val, kind
+                            )
                         else:
                             from aero.presentation.ui import AeroTerminalUI
-                            approved_val, is_approved = AeroTerminalUI.prompt_credential_approval(key_id, existing_val, kind)
+
+                            approved_val, is_approved = (
+                                AeroTerminalUI.prompt_credential_approval(
+                                    key_id, existing_val, kind
+                                )
+                            )
 
                         if not is_approved or not approved_val:
                             raise AeroMeshDomainError(
@@ -120,7 +128,10 @@ class ZeroTrustVaultResolver:
                             secret_val = self.prompt_fn(key_id, kind)
                         else:
                             from aero.presentation.ui import AeroTerminalUI
-                            secret_val = AeroTerminalUI.prompt_missing_credential(key_id, kind)
+
+                            secret_val = AeroTerminalUI.prompt_missing_credential(
+                                key_id, kind
+                            )
 
                         if not secret_val:
                             raise AeroMeshDomainError(

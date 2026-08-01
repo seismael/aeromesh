@@ -2,17 +2,30 @@
 
 import os
 import json
-from typing import Dict, Any, List, Optional, Callable, Tuple
+from typing import Dict, Any, Optional, Callable, Tuple
 from aero.domain.models import AgentManifest, CapabilityProviderRequirement
 from aero.domain.errors import AeroMeshDomainError, ErrorCode, ExitCode
 from aero.domain.paths import get_aeromesh_config_file, get_aeromesh_credentials_file
 
 SUPPORTED_PROVIDERS = [
-    {"id": "deepseek", "name": "DeepSeek AI (DeepSeek-V3 / R1)", "env_var": "DEEPSEEK_API_KEY"},
-    {"id": "anthropic", "name": "Anthropic Claude (Claude 3.7 Sonnet)", "env_var": "ANTHROPIC_API_KEY"},
+    {
+        "id": "deepseek",
+        "name": "DeepSeek AI (DeepSeek-V3 / R1)",
+        "env_var": "DEEPSEEK_API_KEY",
+    },
+    {
+        "id": "anthropic",
+        "name": "Anthropic Claude (Claude 3.7 Sonnet)",
+        "env_var": "ANTHROPIC_API_KEY",
+    },
     {"id": "openai", "name": "OpenAI (GPT-4o / o3-mini)", "env_var": "OPENAI_API_KEY"},
-    {"id": "google", "name": "Google Gemini (Gemini 2.5 Pro)", "env_var": "GEMINI_API_KEY"},
+    {
+        "id": "google",
+        "name": "Google Gemini (Gemini 2.5 Pro)",
+        "env_var": "GEMINI_API_KEY",
+    },
 ]
+
 
 class AeroInteractivePreflightEngine:
     """Manages pre-flight LLM provider selection, agent capability feasibility verification, and dynamic credential negotiation."""
@@ -22,7 +35,9 @@ class AeroInteractivePreflightEngine:
         config_file: Optional[str] = None,
         credentials_file: Optional[str] = None,
         provider_prompt_fn: Optional[Callable[[], Tuple[str, str]]] = None,
-        requirement_prompt_fn: Optional[Callable[[str, str, str], Tuple[str, bool]]] = None,
+        requirement_prompt_fn: Optional[
+            Callable[[str, str, str], Tuple[str, bool]]
+        ] = None,
     ):
         self.config_file = str(config_file or get_aeromesh_config_file())
         self.credentials_file = str(credentials_file or get_aeromesh_credentials_file())
@@ -84,7 +99,10 @@ class AeroInteractivePreflightEngine:
             selected_prov_id, api_key = self.provider_prompt_fn()
         else:
             from aero.presentation.ui import AeroTerminalUI
-            selected_prov_id, api_key = AeroTerminalUI.prompt_provider_selection(SUPPORTED_PROVIDERS)
+
+            selected_prov_id, api_key = AeroTerminalUI.prompt_provider_selection(
+                SUPPORTED_PROVIDERS
+            )
 
         if not selected_prov_id or not api_key:
             raise AeroMeshDomainError(
@@ -100,7 +118,9 @@ class AeroInteractivePreflightEngine:
 
         return selected_prov_id, api_key
 
-    def verify_agent_feasibility(self, manifest: AgentManifest, user_intent: str) -> bool:
+    def verify_agent_feasibility(
+        self, manifest: AgentManifest, user_intent: str
+    ) -> bool:
         """Verifies that the agent has valid tool declarations and schemas to fulfill intent BEFORE requesting keys."""
         if not manifest.identity or not manifest.identity.id:
             raise AeroMeshDomainError(
@@ -141,10 +161,15 @@ class AeroInteractivePreflightEngine:
 
         # Prompt user
         if self.requirement_prompt_fn:
-            user_val, approved = self.requirement_prompt_fn(key_id, existing_val or "", kind)
+            user_val, approved = self.requirement_prompt_fn(
+                key_id, existing_val or "", kind
+            )
         else:
             from aero.presentation.ui import AeroTerminalUI
-            user_val, approved = AeroTerminalUI.prompt_credential_approval(key_id, existing_val, kind)
+
+            user_val, approved = AeroTerminalUI.prompt_credential_approval(
+                key_id, existing_val, kind
+            )
 
         if approved and user_val:
             return user_val, True

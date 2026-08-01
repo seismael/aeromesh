@@ -5,9 +5,10 @@ import sys
 from pathlib import Path
 from typing import Optional
 
+
 def get_aeromesh_home() -> Path:
     """Returns cross-platform OS-agnostic AppData path for AeroMesh.
-    
+
     Resolution Priority:
     1. AEROMESH_HOME environment variable (if set)
     2. Windows: %LOCALAPPDATA%\\AeroMesh (or %APPDATA%\\AeroMesh)
@@ -34,20 +35,26 @@ def get_aeromesh_home() -> Path:
             return Path(xdg_data) / "aeromesh"
         return home / ".local" / "share" / "aeromesh"
 
+
 def get_aeromesh_config_file() -> Path:
     return get_aeromesh_home() / "config.json"
+
 
 def get_aeromesh_credentials_file() -> Path:
     return get_aeromesh_home() / "credentials.json"
 
+
 def get_aeromesh_agents_dir() -> Path:
     return get_aeromesh_home() / "agents"
+
 
 def get_aeromesh_vfs_dir() -> Path:
     return get_aeromesh_home() / "vfs"
 
+
 def get_aeromesh_logs_dir() -> Path:
     return get_aeromesh_home() / "logs"
+
 
 def get_aeromesh_workspace_registry_dir() -> Path:
     """Returns absolute path to workspace registry/agents directory."""
@@ -57,6 +64,7 @@ def get_aeromesh_workspace_registry_dir() -> Path:
         if reg_dir.exists() and reg_dir.is_dir():
             return reg_dir
     return Path(__file__).resolve().parents[4] / "registry" / "agents"
+
 
 def resolve_agent_manifest_path(target_str: str) -> Optional[Path]:
     """Resolves target string to a manifest Path using OS-agnostic resolution priority:

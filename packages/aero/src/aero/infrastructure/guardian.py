@@ -4,6 +4,7 @@ import hashlib
 from typing import Dict, Any, List
 from aero.infrastructure.parser import ManifestParser
 
+
 class GuardianSecurityScanner:
     """Performs static analysis, secret exposure checks, and SHA-256 Sigstore hashing over agent manifests."""
 
@@ -16,12 +17,16 @@ class GuardianSecurityScanner:
 
         # Check 1: Secret hardcoding scan
         if "sk_live_" in raw_json or "ghp_" in raw_json or "AKIA" in raw_json:
-            issues.append("CRITICAL: Hardcoded API key or access token detected in manifest text!")
+            issues.append(
+                "CRITICAL: Hardcoded API key or access token detected in manifest text!"
+            )
 
         # Check 2: Unrestricted domain wildcard
         for prov in manifest.providers:
             if "*" in prov.allowed_domains:
-                issues.append(f"WARNING: Provider '{prov.id}' has unrestricted wildcard '*' in allowed_domains.")
+                issues.append(
+                    f"WARNING: Provider '{prov.id}' has unrestricted wildcard '*' in allowed_domains."
+                )
 
         sha256_hash = hashlib.sha256(raw_json.encode("utf-8")).hexdigest()
 
