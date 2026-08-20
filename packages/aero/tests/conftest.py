@@ -39,3 +39,10 @@ import aero.services.deepagents_runner as _dgr
 
 _dgr.resolve_model = lambda credentials=None: FakeChatModel()
 _dgr.build_mcp_tools = lambda *args, **kwargs: []
+
+# Key storage uses an in-memory Fernet key so tests never touch the OS keyring.
+import aero.infrastructure.keystore as _ks
+from cryptography.fernet import Fernet
+
+_fernet_key = Fernet.generate_key()
+_ks._fernet = lambda store=None: Fernet(_fernet_key)

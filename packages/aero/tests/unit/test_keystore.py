@@ -15,8 +15,20 @@ def test_generate_and_store_keypair_roundtrip(monkeypatch, tmp_path):
 
     loaded_priv = keystore.load_private_key("testkey")
     loaded_pub = keystore.load_public_key("testkey")
-    assert loaded_priv == priv_path.read_bytes()
+    # Private key decrypts to a valid PEM (roundtrip).
+    assert b"PRIVATE KEY" in loaded_priv
     assert loaded_pub == pub_path.read_bytes()
+
+    # Private key is encrypted at rest, not plaintext.
+    assert b"PRIVATE KEY" not in priv_path.read_bytes()
+
+
+def test_private_key_is_encrypted_at_rest(monkeypatch, tmp_path):
+    monkeypatch.setenv("AEROMESH_HOME", str(tmp_path))
+    priv_path, _ = keystore.generate_and_store_keypair("encrypted")
+    on_disk = priv_path.read_bytes()
+    assert b"-----BEGIN PRIVATE KEY-----" not in on_disk
+    assert b"-----BEGIN ENCRYPTED PRIVATE KEY-----" not in on_disk
 
 
 def test_workspace_trusted_dir_is_sibling_of_registry_agents():
