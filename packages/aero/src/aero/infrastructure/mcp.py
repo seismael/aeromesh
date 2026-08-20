@@ -2,7 +2,9 @@
 
 import os
 import json
+import queue
 import subprocess
+import threading
 from dataclasses import dataclass, field
 from typing import Dict, Any, List, Optional
 from aero.domain.errors import AeroMeshDomainError, ErrorCode, ExitCode
@@ -67,6 +69,26 @@ class McpStdioDriver:
                 ExitCode.MCP_SPAWN_FAILED,
             )
 
+    def _readline_with_timeout(self) -> Optional[str]:
+        """Read one line from stdout, returning None on timeout (bounded read)."""
+        result_queue: queue.Queue = queue.Queue()
+
+        def _read():
+            try:
+                result_queue.put(self.proc.stdout.readline())
+            except Exception as e:  # noqa: BLE001 - propagate as None on failure
+                result_queue.put(None)
+
+        reader = threading.Thread(target=_read, daemon=True)
+        reader.start()
+        reader.join(self.timeout_sec)
+        if reader.is_alive():
+            return None
+        try:
+            return result_queue.get_nowait()
+        except queue.Empty:
+            return None
+
     def _send_request(
         self, method: str, params: Dict[str, Any] = None
     ) -> Dict[str, Any]:
@@ -99,11 +121,11 @@ class McpStdioDriver:
                 ExitCode.MCP_SPAWN_FAILED,
             )
 
-        # Read JSON-RPC response line
-        line = self.proc.stdout.readline()
+        # Read JSON-RPC response line (bounded by timeout_sec, cross-platform)
+        line = self._readline_with_timeout()
         if not line:
             raise AeroMeshDomainError(
-                f"MCP server subprocess '{self.command}' closed stdout unexpectedly.",
+                f"MCP server subprocess '{self.command}' timed out or closed stdout unexpectedly.",
                 ErrorCode.AMX_ERR_MCP_TIMEOUT,
                 ExitCode.MCP_TIMEOUT,
             )

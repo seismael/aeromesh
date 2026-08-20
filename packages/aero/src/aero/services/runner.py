@@ -48,6 +48,7 @@ class AeroAgentRunnerService:
         enable_diagnostics: bool = False,
         manifest_object: Optional[Any] = None,
         replay_session_id: Optional[str] = None,
+        execute_tools: Optional[bool] = None,
     ) -> Dict[str, Any]:
         if replay_session_id:
             checkpoint = self.load_checkpoint(replay_session_id)
@@ -85,7 +86,9 @@ class AeroAgentRunnerService:
                 metadata={"resolved_count": len(credentials)},
             )
 
-        driver = LangGraphExecutionDriver(manifest, credentials, tracer=tracer)
+        driver = LangGraphExecutionDriver(
+            manifest, credentials, tracer=tracer, execute_tools=execute_tools
+        )
         result = driver.execute(user_intent)
 
         res_dict = {
