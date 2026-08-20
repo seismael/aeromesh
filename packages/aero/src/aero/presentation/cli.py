@@ -354,11 +354,8 @@ def main(args: List[str] = None) -> int:
                 "pull_request_target": f"registry/agents/{manifest.identity.id}.json",
             }
 
-            # Attach an Ed25519 attestation if a signing key exists.
-            try:
-                payload["attestation"] = trust.sign_manifest_file(parsed.manifest)
-            except Exception:
-                payload["attestation"] = None
+            # Attach the existing Ed25519 attestation (`.sig` sidecar), if present.
+            payload["attestation"] = trust.load_attestation(parsed.manifest)
 
             print(f"🚀 Registry Share Payload for '{manifest.identity.id}':")
             print(json.dumps(payload, indent=2))

@@ -22,6 +22,7 @@ PRICE_PER_MILLION = {
     "gemini-2.5-flash": {"input": 0.30, "output": 2.50},
 }
 _DEFAULT_PRICE = {"input": 1.00, "output": 4.00}
+DEFAULT_MAX_STEPS = 40
 
 
 class TokenUsageCounter(BaseCallbackHandler):
@@ -302,17 +303,23 @@ class DeepAgentsExecutionDriver:
 
         observability = getattr(self.manifest, "observability", None)
         counter = None
+        step_limit = DEFAULT_MAX_STEPS
         if observability is not None:
             if observability.max_execution_steps is not None:
-                config["recursion_limit"] = observability.max_execution_steps
+                step_limit = observability.max_execution_steps
             if observability.cost_limit_usd is not None:
                 counter = TokenUsageCounter()
                 config["callbacks"] = [counter]
+        config["recursion_limit"] = step_limit
 
         state = {"messages": [{"role": "user", "content": user_intent}]}
         if self.rubric:
             state["rubric"] = self.rubric
-        result = self.agent.invoke(state, config=config)
+        # Async invocation: langchain-mcp-adapters tools are async-only, so the
+        # graph must run on the event loop for tool calls to work.
+        import asyncio
+
+        result = asyncio.run(self.agent.ainvoke(state, config=config))
         messages = result.get("messages", [])
         final_text = messages[-1].content if messages else ""
         rubric_status = result.get("_rubric_status")

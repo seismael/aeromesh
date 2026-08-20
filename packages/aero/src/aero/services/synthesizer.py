@@ -14,7 +14,9 @@ SYSTEM_PROMPT = (
     "manifest_version (\"0.1.0\"), identity{id,name,version}, capabilities{domain,tags,"
     "short_description,evaluation_trigger}, cognitive_runtime{persona,success_criteria}, "
     "requirements{providers:[]}. The identity.id must be a lowercase kebab-case slug. "
-    "Do not include explanations or markdown fences."
+    "The persona must instruct the agent to directly answer or perform the goal in the "
+    "current session — do not create files or delegate to subagents unless the goal "
+    "explicitly requires it. Do not include explanations or markdown fences."
 )
 
 
