@@ -6,6 +6,10 @@ import urllib.request
 import urllib.error
 from dataclasses import dataclass
 from typing import Dict, Any, List, Optional
+from urllib.parse import urlparse
+
+from aero.domain.errors import AeroMeshDomainError
+from aero.infrastructure.sandbox import NetworkSandboxFirewall
 
 
 @dataclass
@@ -63,6 +67,9 @@ class CognitiveProviderAdapter:
         )
         self.provider_config = SUPPORTED_PROVIDERS[self.active_provider_id]
         self.active_model = self.provider_config.default_model
+        # Kernel egress is bounded to the provider's own endpoint.
+        host = urlparse(self.provider_config.base_url).hostname or ""
+        self.sandbox = NetworkSandboxFirewall(allowed_domains=[host] if host else [])
 
     def _resolve_active_provider(self, preferred: Optional[str]) -> tuple[str, str]:
         if preferred and preferred in SUPPORTED_PROVIDERS:
@@ -111,11 +118,15 @@ class CognitiveProviderAdapter:
                 return self._call_anthropic_api(system_prompt, user_prompt)
             else:
                 return self._generate_fallback_completion(system_prompt, user_prompt)
+        except AeroMeshDomainError:
+            # Security violations (e.g. sandbox domain block) must propagate.
+            raise
         except Exception:
             return self._generate_fallback_completion(system_prompt, user_prompt)
 
     def _call_openai_compatible_api(self, system_prompt: str, user_prompt: str) -> str:
         url = self.provider_config.base_url
+        self.sandbox.validate_network_request(url)
         headers = {
             "Content-Type": "application/json",
             "Authorization": f"Bearer {self.api_key}",
@@ -141,6 +152,7 @@ class CognitiveProviderAdapter:
 
     def _call_anthropic_api(self, system_prompt: str, user_prompt: str) -> str:
         url = self.provider_config.base_url
+        self.sandbox.validate_network_request(url)
         headers = {
             "Content-Type": "application/json",
             "x-api-key": self.api_key,

@@ -5,7 +5,11 @@ from aero.infrastructure.mcp import McpSseDriver
 from aero.domain.errors import AeroMeshDomainError, ErrorCode
 
 def test_mcp_sse_driver():
-    driver = McpSseDriver(uri="https://mcp.aeromesh.dev/sse", bearer_token="test_token")
+    driver = McpSseDriver(
+        uri="https://mcp.aeromesh.dev/sse",
+        bearer_token="test_token",
+        allowed_domains=["mcp.aeromesh.dev"],
+    )
     driver.connect()
     assert driver.is_connected is True
 

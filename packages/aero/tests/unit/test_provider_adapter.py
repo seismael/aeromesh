@@ -60,3 +60,22 @@ def test_provider_adapter_real_key_calls_api_by_default(monkeypatch):
     adapter = CognitiveProviderAdapter(credentials={"DEEPSEEK_API_KEY": "sk-abc123"})
     response = adapter.complete_prompt("system", "user")
     assert response == "REAL ANSWER"
+
+
+def test_provider_adapter_egress_goes_through_sandbox(monkeypatch):
+    from aero.domain.errors import AeroMeshDomainError, ErrorCode, ExitCode
+
+    adapter = CognitiveProviderAdapter(credentials={"DEEPSEEK_API_KEY": "sk-abc123"})
+    calls = []
+
+    def fake_validate(url):
+        calls.append(url)
+        raise AeroMeshDomainError(
+            "blocked", ErrorCode.AMX_ERR_DOMAIN_BLOCKED, ExitCode.DOMAIN_BLOCKED
+        )
+
+    monkeypatch.setattr(adapter.sandbox, "validate_network_request", fake_validate)
+    with pytest.raises(AeroMeshDomainError):
+        adapter.complete_prompt("system", "user")
+
+    assert calls and "api.deepseek.com" in calls[0]

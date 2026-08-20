@@ -28,9 +28,12 @@ class NetworkSandboxFirewall:
         return hostname.lower()
 
     def is_domain_allowed(self, url_or_domain: str) -> bool:
-        """Validates if target hostname matches allowed_domains policies."""
+        """Validates if target hostname matches allowed_domains policies.
+
+        Deny-by-default: no declared allowed_domains means no remote access.
+        """
         if not self.allowed_domains:
-            return True  # Open default if no restrictions specified
+            return False
 
         if "*" in self.allowed_domains:
             return True

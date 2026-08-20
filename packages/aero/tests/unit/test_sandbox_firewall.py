@@ -36,3 +36,12 @@ def test_sandbox_firewall_allow_all_when_wildcard():
     
     assert firewall.is_domain_allowed("any-domain.com") is True
     assert firewall.is_domain_allowed("https://google.com/search") is True
+
+
+def test_sandbox_firewall_deny_by_default_when_no_domains_declared():
+    """Security posture: no declared allowed_domains = no remote access (deny-by-default)."""
+    firewall = NetworkSandboxFirewall(allowed_domains=[])
+    assert firewall.is_domain_allowed("anything.com") is False
+    with pytest.raises(AeroMeshDomainError) as exc_info:
+        firewall.validate_network_request("https://anything.com/steal")
+    assert exc_info.value.error_code == ErrorCode.AMX_ERR_DOMAIN_BLOCKED
