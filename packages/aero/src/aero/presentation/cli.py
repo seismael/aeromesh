@@ -48,16 +48,18 @@ def main(args: List[str] = None) -> int:
         "export-bundle",
         help="Export an Ed25519-signed attestation bundle for a manifest",
     )
-    export_parser.add_argument("manifest", help="Path to DAM v3.0 agent.json file")
+    export_parser.add_argument("manifest", help="Path to DAM v0.1 agent.json file")
 
     # Command: amx run <manifest_file> "<intent>" [--diagnostics] [--non-interactive] [--replay <session_id>]
     run_parser = subparsers.add_parser(
-        "run", help="Run a single Declarative Agent Manifest"
+        "run", help="Run a manifest, agent ID, or a natural-language goal"
     )
     run_parser.add_argument(
-        "manifest", help="Path or Agent ID to DAM v3.0 agent.json file"
+        "manifest", help="Path / agent ID, or a natural-language goal (JIT synthesis)"
     )
-    run_parser.add_argument("intent", help="User intent string")
+    run_parser.add_argument(
+        "intent", nargs="?", default=None, help="User intent string"
+    )
     run_parser.add_argument(
         "--non-interactive", action="store_true", help="Fail if vault keys missing"
     )
@@ -75,7 +77,7 @@ def main(args: List[str] = None) -> int:
         "pipeline", help="Run a Deterministic Guaranteed Agent Pipeline (DGAP)"
     )
     pipe_parser.add_argument(
-        "manifests", nargs="+", help="Ordered list of DAM v3.0 agent manifests"
+        "manifests", nargs="+", help="Ordered list of DAM v0.1 agent manifests"
     )
     pipe_parser.add_argument(
         "--intent", required=True, help="Initial high-level goal intent string"
@@ -129,7 +131,7 @@ def main(args: List[str] = None) -> int:
 
     # Command: amx init <agent_id>
     init_parser = subparsers.add_parser(
-        "init", help="Scaffold a new DAM v3.0 boilerplate agent.json manifest"
+        "init", help="Scaffold a new DAM v0.1 boilerplate agent.json manifest"
     )
     init_parser.add_argument("agent_id", help="ID/Name of the new agent manifest")
 
@@ -148,13 +150,13 @@ def main(args: List[str] = None) -> int:
     v_check = vault_subparsers.add_parser(
         "check", help="Check credential status for an agent manifest"
     )
-    v_check.add_argument("manifest", help="Path to DAM v3.0 agent.json file")
+    v_check.add_argument("manifest", help="Path to DAM v0.1 agent.json file")
 
     # Command: amx validate <manifest_file>
     val_parser = subparsers.add_parser(
-        "validate", help="Validate a DAM v3.0 agent.json file"
+        "validate", help="Validate a DAM v0.1 agent.json file"
     )
-    val_parser.add_argument("manifest", help="Path to DAM v3.0 agent.json file")
+    val_parser.add_argument("manifest", help="Path to DAM v0.1 agent.json file")
 
     # Command: amx install <manifest_file>
     inst_parser = subparsers.add_parser(
@@ -200,7 +202,7 @@ def main(args: List[str] = None) -> int:
     parsed = parser.parse_args(args)
 
     if parsed.command == "version":
-        print("aero / amx version 0.1.0 (AeroMesh DAM v0.1 OpenAgent Standard)")
+        print("aero / amx version 0.1.0 (AeroMesh DAM v0.1)")
         return 0
 
     if parsed.command == "keygen":
@@ -370,7 +372,7 @@ def main(args: List[str] = None) -> int:
         try:
             manifest = runner.parser.parse_file(parsed.manifest)
             print(
-                f"✅ Manifest '{manifest.identity.id}' is VALID under DAM v3.0 schema."
+                f"✅ Manifest '{manifest.identity.id}' is VALID under DAM v0.1 schema."
             )
             return 0
         except AeroMeshDomainError as e:
@@ -466,39 +468,86 @@ def main(args: List[str] = None) -> int:
 
     if parsed.command == "run":
         try:
-            resolved = resolve_agent_manifest_path(parsed.manifest)
-            if not resolved:
-                raise AeroMeshDomainError(
-                    f"Agent file or manifest ID '{parsed.manifest}' not found in local store or registry.",
-                    ErrorCode.AMX_ERR_DISCOVERY_NO_MATCH,
-                    ExitCode.DISCOVERY_NO_MATCH,
+            if parsed.replay:
+                # Checkpoint replay: requires a resolvable manifest path.
+                resolved = resolve_agent_manifest_path(parsed.manifest)
+                if not resolved:
+                    raise AeroMeshDomainError(
+                        f"Agent file or manifest ID '{parsed.manifest}' not found.",
+                        ErrorCode.AMX_ERR_DISCOVERY_NO_MATCH,
+                        ExitCode.DISCOVERY_NO_MATCH,
+                    )
+                res = runner.run_manifest_file(
+                    str(resolved),
+                    parsed.intent or "Replay",
+                    non_interactive=parsed.non_interactive,
+                    enable_diagnostics=parsed.diagnostics,
+                    replay_session_id=parsed.replay,
                 )
-            target_manifest_path = str(resolved)
+                if res.get("is_replayed"):
+                    print(
+                        f"🔄 [REPLAY] Session '{res.get('session_id')}' (Agent: {res.get('agent_id')})"
+                    )
+                AeroTerminalUI.render_result(
+                    res.get("execution_result", {}).get("verified_result", "Replayed.")
+                )
+                return 0
 
-            res = runner.run_manifest_file(
-                target_manifest_path,
-                parsed.intent,
+            # Resolvable manifest / agent id → direct execution (no provider preflight).
+            resolved = resolve_agent_manifest_path(parsed.manifest)
+            if resolved:
+                res = runner.run_manifest_file(
+                    str(resolved),
+                    parsed.intent or parsed.manifest,
+                    non_interactive=parsed.non_interactive,
+                    enable_diagnostics=parsed.diagnostics,
+                )
+                if "manifest" in res:
+                    AeroTerminalUI.render_agent_banner(res["manifest"])
+                if res.get("diagnostics"):
+                    AeroTerminalUI.render_diagnostics(res["diagnostics"])
+                exec_res = res.get("execution_result", {})
+                verified = (
+                    exec_res.get("verified_result", "Completed successfully.")
+                    if isinstance(exec_res, dict)
+                    else str(exec_res)
+                )
+                AeroTerminalUI.render_result(verified)
+                return 0
+
+            # Not a resolvable manifest → treat as a natural-language goal (JIT synthesis).
+            from aero.services.orchestrator import AeroMasterOrchestrator
+
+            orchestrator = AeroMasterOrchestrator()
+            res = orchestrator.dispatch(
+                parsed.manifest,
+                intent=parsed.intent,
                 non_interactive=parsed.non_interactive,
                 enable_diagnostics=parsed.diagnostics,
-                replay_session_id=parsed.replay,
             )
-            if res.get("is_replayed"):
-                print(
-                    f"🔄 [REPLAY] Session '{res.get('session_id')}' (Agent: {res.get('agent_id')})"
+
+            result = res.get("result", {})
+            mode = res.get("mode", "AGENT")
+
+            if mode in ("AGENT", "JIT_AGENT") and isinstance(result, dict):
+                if "manifest" in result:
+                    AeroTerminalUI.render_agent_banner(result["manifest"])
+                if result.get("diagnostics"):
+                    AeroTerminalUI.render_diagnostics(result["diagnostics"])
+                exec_res = result.get("execution_result", {})
+                verified = (
+                    exec_res.get("verified_result", "Completed successfully.")
+                    if isinstance(exec_res, dict)
+                    else str(exec_res)
                 )
-            elif "manifest" in res:
-                AeroTerminalUI.render_agent_banner(res["manifest"])
-
-            if res.get("diagnostics"):
-                AeroTerminalUI.render_diagnostics(res["diagnostics"])
-
-            exec_res = res.get("execution_result", {})
-            verified_output = (
-                exec_res.get("verified_result", "Completed successfully.")
-                if isinstance(exec_res, dict)
-                else str(exec_res)
-            )
-            AeroTerminalUI.render_result(verified_output)
+                AeroTerminalUI.render_result(verified)
+            else:
+                status = (
+                    result.get("pipeline_status")
+                    or result.get("status")
+                    or "completed"
+                )
+                AeroTerminalUI.render_result(f"{mode}: {status}")
             return 0
         except AeroMeshDomainError as e:
             AeroTerminalUI.render_error(str(e))

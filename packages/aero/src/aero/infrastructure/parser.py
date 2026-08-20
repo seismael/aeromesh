@@ -1,4 +1,4 @@
-"""DAM v3.0 JSON Schema Validator Infrastructure Adapter."""
+"""DAM v0.1 JSON Schema Validator Infrastructure Adapter."""
 
 import os
 import json
@@ -30,7 +30,7 @@ SCHEMA_PATH = os.path.abspath(
 
 
 class ManifestParser:
-    """Parses raw manifest text or dict and validates against DAM v3.0 JSON Schema."""
+    """Parses raw manifest text or dict and validates against DAM v0.1 JSON Schema."""
 
     def __init__(self, schema_path: str = SCHEMA_PATH):
         self.schema_path = schema_path
@@ -75,7 +75,7 @@ class ManifestParser:
             jsonschema.validate(instance=data, schema=schema)
         except jsonschema.ValidationError as e:
             raise AeroMeshDomainError(
-                f"Manifest failed DAM v3.0 schema assertion: {e.message}",
+                f"Manifest failed DAM v0.1 schema assertion: {e.message}",
                 ErrorCode.AMX_ERR_SCHEMA_VIOLATION,
                 ExitCode.SCHEMA_VIOLATION,
             )

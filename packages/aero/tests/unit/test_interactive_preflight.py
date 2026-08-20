@@ -56,7 +56,7 @@ def test_preflight_ensure_default_provider_from_env(monkeypatch, config_paths):
 
 
 def test_preflight_ensure_default_provider_missing_non_interactive(monkeypatch, config_paths):
-    """Verifies deterministic failure when no provider keys exist in non-interactive mode."""
+    """Verifies offline/mock mode when no provider keys exist in non-interactive mode."""
     cfg_path, cred_path = config_paths
     monkeypatch.delenv("DEEPSEEK_API_KEY", raising=False)
     monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
@@ -64,9 +64,9 @@ def test_preflight_ensure_default_provider_missing_non_interactive(monkeypatch, 
     monkeypatch.delenv("GEMINI_API_KEY", raising=False)
 
     engine = AeroInteractivePreflightEngine(config_file=cfg_path, credentials_file=cred_path)
-    with pytest.raises(AeroMeshDomainError) as exc:
-        engine.ensure_default_provider(non_interactive=True)
-    assert exc.value.error_code == ErrorCode.AMX_ERR_VAULT_KEY_MISSING
+    prov_id, api_key = engine.ensure_default_provider(non_interactive=True)
+    assert prov_id is None
+    assert api_key == ""
 
 
 def test_preflight_interactive_provider_selection(monkeypatch, config_paths):

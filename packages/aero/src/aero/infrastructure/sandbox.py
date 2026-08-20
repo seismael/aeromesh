@@ -1,4 +1,4 @@
-"""Network Proxy Sandbox Firewall Engine for DAM v3.0 allowed_domains Enforcement."""
+"""Network Sandbox Firewall Engine for DAM v0.1 allowed_domains Enforcement."""
 
 from urllib.parse import urlparse
 from typing import List, Optional

@@ -11,7 +11,7 @@ from aero.infrastructure.sandbox import NetworkSandboxFirewall
 
 
 class LangGraphExecutionDriver:
-    """Executes DAM v3.0 manifests via LangGraph StateGraph engine and live MCP stdio drivers."""
+    """Executes DAM v0.1 manifests via LangGraph StateGraph engine and MCP drivers."""
 
     def __init__(
         self,

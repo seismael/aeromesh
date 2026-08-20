@@ -88,11 +88,9 @@ class AeroInteractivePreflightEngine:
                 return prov["id"], env_val
 
         if non_interactive:
-            raise AeroMeshDomainError(
-                "No default LLM model provider or API key configured. Set DEEPSEEK_API_KEY, ANTHROPIC_API_KEY, or OPENAI_API_KEY.",
-                ErrorCode.AMX_ERR_VAULT_KEY_MISSING,
-                ExitCode.VAULT_KEY_MISSING,
-            )
+            # Offline/mock mode: no provider key configured. The driver and JIT
+            # synthesizer degrade gracefully to deterministic fallbacks.
+            return None, ""
 
         # Interactive Setup Call
         if self.provider_prompt_fn:
