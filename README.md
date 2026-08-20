@@ -1,5 +1,11 @@
 # AeroMesh — Declarative, Signed, Sandboxed Agents on Deep Agents
 
+[![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
+[![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-blue.svg)](packages/aero)
+[![Built on Deep Agents](https://img.shields.io/badge/built_on-Deep_Agents-black.svg)](https://github.com/langchain-ai/deepagents)
+
+> **"npm for AI agents, with security"** — a declarative agent standard + a trust/sandbox layer on top of LangChain Deep Agents.
+
 AeroMesh is a **declarative agent standard + a thin trust layer built on LangChain Deep Agents**. It does **not** implement an agent runtime — Deep Agents already does that (planning, subagents, skills, filesystem, HITL, memory). AeroMesh adds the four things Deep Agents does not give you:
 
 1. **A declarative standard (DAM v0.1)** — describe an agent as a portable JSON manifest, not code or a fat prompt.
@@ -28,7 +34,26 @@ Deep Agents gives you a *framework*. AeroMesh gives you a *format and a trust bo
 - **Enterprise agent governance** — a team maintains a signed registry of approved agents; engineers `amx install` and run them, knowing they are verified and sandboxed.
 - **Portable, vendor-neutral agents** — the same manifest runs across model providers without code changes.
 - **On-demand agent authoring** — "build me an agent that monitors server uptime" → a signed, runnable manifest in seconds.
-- **Safe third-party agents** — fetch an agent, verify its signer, and run it with restricted egress ("npm for AI agents, with security").
+- **Safe third-party agents** — fetch an agent, verify its signer, and run it with restricted egress.
+
+**Who it's for:** platform/DevEx teams, security teams, agent builders, and enterprises that want agents treated as signed, auditable, sandboxed artifacts.
+
+---
+
+## Differentiation — why not just MCP or Deep Agents?
+
+AeroMesh is **not a competitor** to MCP or Deep Agents — it's the missing layer on top of both:
+
+| Capability | MCP | Deep Agents | AeroMesh |
+|---|---|---|---|
+| Tool protocol | ✅ | — | consumes MCP |
+| Agent runtime | — | ✅ | delegates to it |
+| **Declarative agent format (DAM)** | ❌ | ❌ | ✅ |
+| **Signed distribution + verification** | ❌ | ❌ | ✅ |
+| **Sandboxed execution of third-party agents** | ❌ | ❌ | ✅ |
+| **LLM-authored agents (JIT)** | ❌ | ❌ | ✅ |
+
+Full pitch → [`docs/14_ADOPTION_AND_VALUE_PROPOSITION.md`](docs/14_ADOPTION_AND_VALUE_PROPOSITION.md).
 
 ---
 
