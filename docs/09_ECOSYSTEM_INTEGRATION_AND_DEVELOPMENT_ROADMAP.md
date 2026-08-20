@@ -1,13 +1,13 @@
 # Ecosystem Integration Topology & Development Roadmap
 
-> **Status: roadmap — partially shipped.** This is the delivery plan, not a
-> completion report. Only Phase 1 is shipped in v1.0.0; later phases are deferred
-> or were removed in the Deep Agents refactor. See `README.md`, `CHANGELOG.md`,
-> and `SECURITY.md` for the authoritative current state.
+> **Status: roadmap.** This is the delivery plan. Shipped so far: Phase 1 (core),
+> session persistence, real search, live-model CI, and Phase 5 workflows (DWM
+> v0.1). The rest is deferred. See `README.md`, `CHANGELOG.md`, and `SECURITY.md`
+> for the authoritative current state.
 
 **Document Version:** 1.0.0 (roadmap)  
 **Execution Strategy:** 5-Phase Incremental Delivery Plan  
-**Status:** Phase 1 shipped ✅ · Phases 2–5 deferred / removed (see below)
+**Status:** Phases 1 & 5 + persistence/search/CI shipped ✅ · Phases 2–4 partial/deferred
 
 ---
 
@@ -36,14 +36,14 @@ graph TD
 | 1. Standalone `amx` CLI + DAM v0.1 core | CLI, DAM schema/parser, Deep Agents execution, Ed25519 trust + revocation, encrypted vault, egress sandbox | **SHIPPED** ✅ |
 | 2. Git-as-registry marketplace + search | `amx share`/`install` (shipped); `amx search` (keyword-only, shipped); hosted marketplace + 2-tier vector index (deferred) | **PARTIAL** |
 | 3. Developer tools | VS Code extension (stub `package.json` only); test harness (removed); Sigstore transparency-log bundle (deferred) | **DEFERRED** |
-| 4. Multi-language SDKs + session replay | Python SDK (shipped, thin); TS/Go SDKs (deferred); real session persistence/replay (see `docs/15`) | **PARTIAL** |
-| 5. Workflows + swarm consensus | `amx workflow` / `amx pipeline` removed in the refactor; orchestration is delegated to Deep Agents subagents/planning | **REMOVED** |
+| 4. Multi-language SDKs + session replay | Python SDK (shipped, thin); **session persistence shipped** (SQLite checkpointer/store + `amx history` / `--replay`); TS/Go SDKs (deferred) | **PARTIAL** |
+| 5. Workflows + swarm consensus | **Workflows shipped** (`amx workflow`, DWM v0.1 — a signed DAG of verified agents on LangGraph); multi-agent swarms still delegated to Deep Agents subagents | **SHIPPED (workflows)** ✅ |
 
 ---
 
 ## 3. Verification
 
-- **Offline test suite:** 85 passed (real code; test doubles are confined to
+- **Offline test suite:** 99 passed (real code; test doubles are confined to
   `tests/conftest.py`).
-- **Live-model CI:** deferred — needs a real provider key and a real MCP server
-  in CI (see `SECURITY.md` / roadmap).
+- **Live-model CI:** shipped — opt-in real DeepSeek tests (`packages/aero/tests_live/`)
+  gated on the `DEEPSEEK_API_KEY` GitHub secret.

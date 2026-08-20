@@ -6,12 +6,13 @@
 
 > **"npm for AI agents, with security"** — a declarative agent standard + a trust/sandbox layer on top of LangChain Deep Agents.
 
-AeroMesh is a **declarative agent standard + a thin trust layer built on LangChain Deep Agents**. It does **not** implement an agent runtime, model-provider layer, or MCP transport — Deep Agents / LangChain already do all of that (models via `init_chat_model`, MCP tools via `langchain-mcp-adapters`, plus planning, subagents, skills, filesystem, HITL, memory). AeroMesh adds the four things Deep Agents does **not** give you:
+AeroMesh is a **declarative agent standard + a thin trust layer built on LangChain Deep Agents**. It does **not** implement an agent runtime, model-provider layer, or MCP transport — Deep Agents / LangChain already do all of that (models via `init_chat_model`, MCP tools via `langchain-mcp-adapters`, plus planning, subagents, skills, filesystem, HITL, memory). AeroMesh adds the five things Deep Agents does **not** give you:
 
 1. **A declarative standard (DAM v0.1)** — describe an agent as a portable JSON manifest, not code or a fat prompt.
 2. **LLM-driven synthesis** — turn a natural-language goal into a schema-valid manifest with a live model.
 3. **A trusted marketplace** — Ed25519-signed manifests; `amx install` verifies the signer before running.
-4. **A sandbox** — deny-by-default `allowed_domains` + an egress proxy around MCP tool subprocesses.
+4. **Composable workflows (DWM v0.1)** — sign and run multi-agent DAGs built from already-verified agents, with recursive trust.
+5. **A sandbox** — deny-by-default `allowed_domains` + an egress proxy around MCP tool subprocesses.
 
 A DAM manifest **compiles into `create_deep_agent()`**, so you get Deep Agents' full runtime, plus AeroMesh's declaration/trust/sandbox on top.
 
@@ -111,13 +112,17 @@ Full pitch → [`docs/14_ADOPTION_AND_VALUE_PROPOSITION.md`](docs/14_ADOPTION_AN
 aeromesh/
 ├── .agents/                Governance layer (AGENTS.md)
 ├── docs/                   Specifications (PRD, architecture, standard, security)
-├── schemas/                DAM v0.1 JSON Schema
+├── schemas/                DAM + DWM JSON Schemas
 ├── packages/
-│   ├── aero/               The standard + CLI (amx) + trust/sandbox
+│   ├── aero/               Standard + CLI (amx) + trust/sandbox (tests/, tests_live/)
 │   └── sdk-python/         Embeddable Python SDK (aeromesh-sdk)
+├── scripts/                seed_registry.py (sign + publish trusted keys)
 └── registry/
-    ├── agents/             Agent manifests
-    └── trusted/            Public keys for install verification
+    ├── agents/             Agent manifests (+ .sig sidecars)
+    ├── workflows/          Workflow manifests (+ .sig sidecars)
+    ├── trusted/            Public keys for install verification
+    ├── revoked/            Revoked-key markers
+    └── index.json          Searchable agent catalog
 ```
 
 ---
@@ -165,7 +170,8 @@ amx workflow run "Build a workflow that audits my repo then tunes the flagged qu
 
 1. Authors `amx keygen` + `amx sign`, committing the manifest + `.sig` and public key to `registry/trusted/`.
 2. Consumers `amx install`; the engine verifies the Ed25519 signature **and** the trusted signer.
-3. At runtime, the agent's `allowed_domains` restricts its MCP tools' **HTTP(S)** egress via the proxy (egress allowlisting — see `SECURITY.md` for the honest isolation boundary).
+3. Workflows (`amx workflow install`) apply the same check to the workflow **and** to every agent it references (recursive trust).
+4. At runtime, the agent's `allowed_domains` restricts its MCP tools' **HTTP(S)** egress via the proxy (egress allowlisting — see `SECURITY.md` for the honest isolation boundary).
 
 Self-contained, offline-capable — no external CA or transparency log required.
 
@@ -194,7 +200,6 @@ is in [`docs/16_ROADMAP_AND_DEFERRED.md`](docs/16_ROADMAP_AND_DEFERRED.md). In b
 - **Hosted marketplace web hub** — today git-as-registry (`registry/index.json` + `registry/agents/`).
 - **Semantic/embedding search** — today real BM25 lexical search.
 - **Multi-language SDKs + a real VS Code extension** — today a thin Python SDK + stub extension.
-- **Workflow engine** — multi-agent orchestration as signed artifacts (in design; see `docs/10`).
 
 ## License
 
