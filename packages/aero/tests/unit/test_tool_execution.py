@@ -127,3 +127,40 @@ def test_driver_skips_tools_when_disabled():
     assert mock.spawned is False
     assert result["tool_results"] == []
     assert result["tools_called"] == 0
+
+
+def test_driver_injects_proxy_env_into_stdio_subprocess():
+    """Auto-discovered stdio drivers must route egress through the allowlist proxy."""
+    manifest = ManifestParser().validate_dict(
+        {
+            "manifest_version": "0.1.0",
+            "identity": {"id": "proxy-agent", "name": "P", "version": "0.1.0"},
+            "capabilities": {
+                "domain": "P",
+                "tags": ["p"],
+                "short_description": "d",
+                "evaluation_trigger": "e",
+            },
+            "cognitive_runtime": {"persona": "p", "success_criteria": "s"},
+            "requirements": {
+                "providers": [
+                    {
+                        "type": "mcp",
+                        "id": "m",
+                        "transport": "stdio",
+                        "command": "echo",
+                        "required_tools": ["t"],
+                    }
+                ]
+            },
+        }
+    )
+    driver = LangGraphExecutionDriver(manifest, credentials={}, execute_tools=True)
+    try:
+        stdio = driver.mcp_drivers[0]
+        assert driver.proxy is not None
+        assert "HTTP_PROXY" in stdio.env
+        assert stdio.env["HTTP_PROXY"].startswith("http://127.0.0.1:")
+    finally:
+        if driver.proxy:
+            driver.proxy.stop()

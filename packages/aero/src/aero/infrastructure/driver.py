@@ -10,6 +10,7 @@ from langgraph.graph import END, StateGraph
 
 from aero.domain.models import AgentManifest
 from aero.infrastructure.diagnostics import AeroDiagnosticTracer
+from aero.infrastructure.egress_proxy import LocalEgressProxy
 from aero.infrastructure.mcp import McpSseDriver, McpStdioDriver
 from aero.infrastructure.providers import CognitiveProviderAdapter
 from aero.infrastructure.sandbox import NetworkSandboxFirewall
@@ -63,6 +64,7 @@ class LangGraphExecutionDriver:
         self.sandbox = NetworkSandboxFirewall(allowed_domains=allowed_domains)
 
         self.mcp_drivers: List[Any] = []
+        self.proxy: Optional[LocalEgressProxy] = None
         if mcp_drivers is not None:
             self.mcp_drivers = list(mcp_drivers)
         else:
@@ -72,11 +74,20 @@ class LangGraphExecutionDriver:
         """Instantiate MCP drivers for declared stdio and remote SSE requirements."""
         for p in self.manifest.providers:
             if p.type == "mcp" and p.command:
+                env = dict(self.credentials)
+                if self.execute_tools:
+                    # Route subprocess HTTP(S) through the allowlist egress proxy.
+                    if self.proxy is None:
+                        self.proxy = LocalEgressProxy(
+                            allowed_domains=self.sandbox.allowed_domains
+                        )
+                        self.proxy.start()
+                    env.update(self.proxy.proxy_env())
                 self.mcp_drivers.append(
                     McpStdioDriver(
                         command=p.command,
                         args=p.args,
-                        env=self.credentials,
+                        env=env,
                         timeout_sec=3.0,
                     )
                 )
