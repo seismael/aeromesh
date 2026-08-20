@@ -67,7 +67,7 @@ Full pitch → [`docs/14_ADOPTION_AND_VALUE_PROPOSITION.md`](docs/14_ADOPTION_AN
 - **Real tool execution** — a manifest's `mcp` providers become real LangChain tools (`langchain-mcp-adapters`) and are passed to `create_deep_agent`.
 - **`sub_agent` + `skill` providers** — mapped to Deep Agents subagents/skills.
 - **Encrypted credentials** — OS-keyring-backed storage (`amx vault set`).
-- **Sandbox** — deny-by-default network policy + egress proxy enforcing `allowed_domains`.
+- **Sandbox** — deny-by-default `allowed_domains` enforced via an HTTP(S) egress proxy on MCP tool subprocesses (**egress allowlisting, not full OS process isolation**).
 - **Output verification** — a manifest's `output_contract` (JSON Schema) is enforced via Deep Agents `RubricMiddleware`.
 
 > **Honesty note:** a live provider key is required for real model calls; a running MCP server is required for real tool execution. There are **no fakes or mocks in production code** — test doubles exist only in `tests/`.
@@ -126,7 +126,7 @@ amx run "Build an agent that monitors server uptime and alerts on downtime"
 
 1. Authors `amx keygen` + `amx sign`, committing the manifest + `.sig` and public key to `registry/trusted/`.
 2. Consumers `amx install`; the engine verifies the Ed25519 signature **and** the trusted signer.
-3. At runtime, the agent's `allowed_domains` restricts its MCP tool egress via the proxy.
+3. At runtime, the agent's `allowed_domains` restricts its MCP tools' **HTTP(S)** egress via the proxy (egress allowlisting — see `SECURITY.md` for the honest isolation boundary).
 
 Self-contained, offline-capable — no external CA or transparency log required for v0.1.
 
