@@ -1,6 +1,7 @@
 """Zero-Trust Secure Vault Resolver Infrastructure Adapter."""
 
 import os
+import sys
 import json
 from pathlib import Path
 from typing import Dict, List, Union, Callable, Tuple
@@ -9,6 +10,7 @@ from aero.domain.models import CapabilityProviderRequirement
 from aero.domain.paths import (
     get_aeromesh_home,
 )
+from aero.infrastructure.credential_store import SecureCredentialStore
 
 
 class ZeroTrustVaultResolver:
@@ -20,6 +22,7 @@ class ZeroTrustVaultResolver:
         config_dir: Union[str, Path] = None,
         prompt_fn: Callable[[str, str], str] = None,
         approval_fn: Callable[[str, str, str], Tuple[str, bool]] = None,
+        store: SecureCredentialStore = None,
     ):
         self.override_env = override_env or {}
         self.config_dir = Path(config_dir) if config_dir else get_aeromesh_home()
@@ -27,6 +30,7 @@ class ZeroTrustVaultResolver:
         self.credentials_file = self.config_dir / "credentials.json"
         self.prompt_fn = prompt_fn
         self.approval_fn = approval_fn
+        self.store = store or SecureCredentialStore()
         self._desktop_tokens_cache = None
 
     def _load_json_file(self, fpath: Path) -> Dict[str, str]:
@@ -39,14 +43,20 @@ class ZeroTrustVaultResolver:
         return {}
 
     def _save_credential(self, key_id: str, value: str) -> None:
-        credentials = self._load_json_file(self.credentials_file)
-        credentials[key_id] = value
-        self.credentials_file.parent.mkdir(parents=True, exist_ok=True)
+        """Persist a credential in the OS keyring (encrypted). Falls back to a
+        plaintext file only as a loudly-warned last resort."""
         try:
+            self.store.set(key_id, value)
+        except Exception:
+            print(
+                f"[warn] OS keyring unavailable; storing '{key_id}' in plaintext credentials.json",
+                file=sys.stderr,
+            )
+            credentials = self._load_json_file(self.credentials_file)
+            credentials[key_id] = value
+            self.credentials_file.parent.mkdir(parents=True, exist_ok=True)
             with open(self.credentials_file, "w", encoding="utf-8") as f:
                 json.dump(credentials, f, indent=2)
-        except Exception:
-            pass
 
     def _load_desktop_tokens(self) -> Dict[str, str]:
         if self._desktop_tokens_cache is None:
@@ -78,10 +88,11 @@ class ZeroTrustVaultResolver:
                 key_id = provider.id
                 kind = getattr(provider, "kind", "credential")
 
-                # Check for existing discovered value
+                # Check for existing discovered value (keyring first, then legacy files)
                 existing_val = (
                     self.override_env.get(key_id)
                     or os.environ.get(key_id)
+                    or self.store.get(key_id)
                     or vault_secrets.get(key_id)
                     or config_secrets.get(key_id)
                     or desktop_secrets.get(key_id)

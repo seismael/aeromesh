@@ -152,6 +152,12 @@ def main(args: List[str] = None) -> int:
     )
     v_check.add_argument("manifest", help="Path to DAM v0.1 agent.json file")
 
+    v_set = vault_subparsers.add_parser(
+        "set", help="Store a secret in the encrypted OS keyring"
+    )
+    v_set.add_argument("key", help="Credential key name (e.g. DB_CONNECT_STRING)")
+    v_set.add_argument("value", help="Secret value to store")
+
     # Command: amx validate <manifest_file>
     val_parser = subparsers.add_parser(
         "validate", help="Validate a DAM v0.1 agent.json file"
@@ -367,6 +373,14 @@ def main(args: List[str] = None) -> int:
             except AeroMeshDomainError as e:
                 AeroTerminalUI.render_error(str(e))
                 return e.exit_code.value
+        elif parsed.vault_command == "set":
+            try:
+                runner.vault.store.set(parsed.key, parsed.value)
+                print(f"🔐 Stored '{parsed.key}' in the encrypted OS keyring.")
+                return 0
+            except Exception as e:
+                AeroTerminalUI.render_error(str(e))
+                return 10
 
     if parsed.command == "validate":
         try:
