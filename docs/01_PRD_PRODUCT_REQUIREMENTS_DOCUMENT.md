@@ -6,7 +6,7 @@
 
 AeroMesh is a **declarative agent standard (DAM v0.1) + a thin runtime**. Three problems, three pillars:
 
-1. **Portability** — describe an agent once as a schema-validated JSON manifest, so you don't rebuild it per framework or per task.
+1. **Portability** — describe an agent once as a schema-validated JSON manifest, so you don't rewrite the declaration per model provider or per task.
 2. **On-demand synthesis** — for a goal no existing agent covers, an LLM synthesizes a schema-valid manifest.
 3. **Trust** — agents are Ed25519-signed; `amx install` verifies signatures against `registry/trusted/`; `allowed_domains` sandboxes remote tool endpoints.
 

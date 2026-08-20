@@ -6,7 +6,7 @@
 
 > **"npm for AI agents, with security"** — a declarative agent standard + a trust/sandbox layer on top of LangChain Deep Agents.
 
-AeroMesh is a **declarative agent standard + a thin trust layer built on LangChain Deep Agents**. It does **not** implement an agent runtime — Deep Agents already does that (planning, subagents, skills, filesystem, HITL, memory). AeroMesh adds the four things Deep Agents does not give you:
+AeroMesh is a **declarative agent standard + a thin trust layer built on LangChain Deep Agents**. It does **not** implement an agent runtime, model-provider layer, or MCP transport — Deep Agents / LangChain already do all of that (models via `init_chat_model`, MCP tools via `langchain-mcp-adapters`, plus planning, subagents, skills, filesystem, HITL, memory). AeroMesh adds the four things Deep Agents does **not** give you:
 
 1. **A declarative standard (DAM v0.1)** — describe an agent as a portable JSON manifest, not code or a fat prompt.
 2. **LLM-driven synthesis** — turn a natural-language goal into a schema-valid manifest with a live model.
@@ -53,7 +53,7 @@ Deep Agents gives you a *framework*. AeroMesh gives you a *format and a trust bo
 
 | Need | What AeroMesh adds |
 |---|---|
-| **Portability** | One manifest runs on DeepSeek / Anthropic / OpenAI / Gemini (native `init_chat_model`). |
+| **Provider-agnostic manifest** | The manifest never hardcodes a provider — the model is resolved from your environment at run time (a Deep Agents capability; AeroMesh keeps it out of the manifest). |
 | **No code** | Agents are declared as JSON; an LLM can author them (`amx run "<goal>"`). |
 | **Distribution** | Git-as-registry: publish a manifest + public key, others `amx install` it. |
 | **Trust** | "Download an agent and prove who signed it and that it wasn't tampered with." |
@@ -62,7 +62,7 @@ Deep Agents gives you a *framework*. AeroMesh gives you a *format and a trust bo
 ### Use cases
 
 - **Enterprise agent governance** — a team maintains a signed registry of approved agents; engineers `amx install` and run them, knowing they are verified and sandboxed.
-- **Portable, vendor-neutral agents** — the same manifest runs across model providers without code changes.
+- **Provider-agnostic agents** — the same manifest runs unchanged across any model provider Deep Agents supports.
 - **On-demand agent authoring** — "build me an agent that monitors server uptime" → a signed, runnable manifest in seconds.
 - **Safe third-party agents** — fetch an agent, verify its signer, and run it with restricted egress.
 

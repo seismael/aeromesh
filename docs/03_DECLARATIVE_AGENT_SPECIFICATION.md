@@ -5,7 +5,7 @@
 
 ## 1. Purpose
 
-DAM v0.1 is a JSON format for describing a portable, schema-validated AI agent. It captures *what* an agent is, *what it can do*, and *what it needs* — without binding it to a specific framework or vendor.
+DAM v0.1 is a JSON format for describing a portable, schema-validated AI agent. It captures *what* an agent is, *what it can do*, and *what it needs* — without binding it to a specific model provider or vendor.
 
 ## 2. Top-level structure
 

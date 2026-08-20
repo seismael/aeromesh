@@ -32,7 +32,7 @@ A **declarative agent manifest (DAM v0.1)** that compiles into `create_deep_agen
 
 ## Benefits
 
-- **Portability** — one manifest runs on DeepSeek / Anthropic / OpenAI / Gemini.
+- **Provider-agnostic manifest** — a DAM declares *intent*, not a specific model provider; Deep Agents resolves the provider (DeepSeek / Anthropic / OpenAI / Gemini) at runtime.
 - **No code** — agents are JSON; an LLM can author them.
 - **Trust** — prove who signed an agent and that it wasn't tampered with.
 - **Safety** — a third-party agent's network egress is allowlisted.
@@ -41,7 +41,7 @@ A **declarative agent manifest (DAM v0.1)** that compiles into `create_deep_agen
 ## Use cases
 
 - **Enterprise agent governance** — a signed registry of approved agents; engineers install + run verified, sandboxed agents.
-- **Vendor-neutral portability** — same agent across model providers, no code changes.
+- **Vendor-neutral packaging** — one manifest, any provider Deep Agents supports, with no manifest changes.
 - **On-demand authoring** — "build me an agent that reviews code for vulnerabilities" → a runnable manifest.
 - **Safe third-party agents** — download an agent and run it with confidence + restricted egress.
 
@@ -49,7 +49,7 @@ A **declarative agent manifest (DAM v0.1)** that compiles into `create_deep_agen
 
 - **Platform/DevEx teams** building internal agent registries and governance.
 - **Security teams** that need auditable, signed, sandboxed agent distribution.
-- **Agent builders** who want a portable, vendor-neutral packaging format.
+- **Agent builders** who want a provider-agnostic, declarative packaging format.
 - **Enterprises** standardizing on "agents as signed artifacts" (like images/packages).
 
 ## Differentiation — why not just MCP or Deep Agents?

@@ -113,7 +113,7 @@ sentence to a running, signable agent in seconds, with no manifest editing.
 | **Sign + verify + revoke** | The missing "trust" layer — provenance + revocation that MCP/Deep Agents don't provide. |
 | **LLM authoring (JIT)** | Removes the last barrier: no format knowledge needed to create an agent. |
 | **Deny-by-default sandbox** | A downloaded agent can't exfiltrate over HTTP unless its manifest explicitly allows a domain. |
-| **One manifest → any model** | No lock-in; swap DeepSeek / Claude / GPT / Gemini by changing one env var. |
+| **Provider-agnostic manifest** | The DAM never hardcodes a model; the actual multi-provider runtime (DeepSeek / Claude / GPT / Gemini) is inherited from Deep Agents' `init_chat_model`. |
 | **Hard tool requirement** | A declared MCP tool is guaranteed available, or the run fails loudly — no silent degradation. |
 
 ---
@@ -137,4 +137,4 @@ sentence to a running, signable agent in seconds, with no manifest editing.
 
 > **You declare an agent as signed JSON, or let the LLM write it for you; you
 > `install` it with cryptographic verification; and you `run` it as a full Deep
-> Agent — real model, real tools, sandboxed — on any provider.**
+> Agent — real model, real tools, sandboxed — with the model provider resolved by Deep Agents.**
