@@ -15,6 +15,8 @@ from aero.domain.paths import (
     get_aeromesh_agents_dir,
 )
 from aero.infrastructure.parser import ManifestParser
+from aero.infrastructure.providers import CognitiveProviderAdapter
+from aero.services.synthesizer import JitSynthesizer
 
 
 @dataclass
@@ -44,8 +46,16 @@ class FallbackPlan:
 class AeroGoalDecompositionEngine:
     """Decomposes raw natural language intents into agent swarms, requirement checklists, and JIT manifests."""
 
-    def __init__(self, parser: Optional[ManifestParser] = None):
+    def __init__(self, parser: Optional[ManifestParser] = None, synthesizer: Optional[JitSynthesizer] = None):
         self.parser = parser or ManifestParser()
+        if synthesizer is not None:
+            self.synthesizer = synthesizer
+        else:
+            # Wire a live provider adapter so JIT synthesis uses the LLM when a
+            # real API key is available, and falls back to the template otherwise.
+            self.synthesizer = JitSynthesizer(
+                parser=self.parser, adapter=CognitiveProviderAdapter()
+            )
 
     def _load_available_manifests(self) -> List[Tuple[str, AgentManifest]]:
         """Loads all available manifests from workspace registry and local user store."""
@@ -67,57 +77,8 @@ class AeroGoalDecompositionEngine:
         return manifests
 
     def synthesize_jit_manifest(self, goal: str, max_retries: int = 3) -> AgentManifest:
-        """Synthesizes a valid DAM v3.0 AgentManifest on-the-fly for unknown user goals with schema retry feedback loop."""
-        slug = re.sub(r"[^a-z0-9]+", "-", goal.lower()).strip("-")[:30]
-        agent_id = f"jit-{slug}"
-
-        last_error = None
-        for attempt in range(1, max_retries + 1):
-            try:
-                raw_dict = {
-                    "manifest_version": "3.0.0",
-                    "identity": {
-                        "id": agent_id,
-                        "name": f"JIT Synthesized Agent ({agent_id})",
-                        "version": "1.0.0",
-                        "author": "AeroEngine JIT Synthesizer",
-                        "license": "MIT",
-                    },
-                    "capabilities": {
-                        "domain": "Dynamic Multi-Domain",
-                        "tags": ["jit", "dynamic", "auto-generated"],
-                        "short_description": f"Auto-generated JIT agent for intent: {goal}",
-                        "evaluation_trigger": goal,
-                    },
-                    "cognitive_runtime": {
-                        "persona": f"You are a specialized autonomous agent created for: {goal}",
-                        "success_criteria": f"Goal criteria met: {goal}",
-                        "driver": "Driver.LangGraph",
-                        "memory_policy": "CVM_LRU_PAGING",
-                    },
-                    "requirements": {
-                        "providers": [
-                            {
-                                "type": "credential",
-                                "id": "SYSTEM_API_KEY",
-                                "kind": "credential",
-                            }
-                        ]
-                    },
-                }
-
-                manifest = self.parser.validate_dict(raw_dict)
-                return manifest
-            except Exception as e:
-                last_error = e
-
-        from aero.domain.errors import AeroMeshDomainError, ErrorCode, ExitCode
-
-        raise AeroMeshDomainError(
-            f"JIT Builder failed to synthesize valid manifest after {max_retries} attempts: {str(last_error)}",
-            ErrorCode.AMX_ERR_JIT_BUILD_FAILED,
-            ExitCode.JIT_BUILD_FAILED,
-        )
+        """Synthesize a DAM v0.1 manifest for an unknown goal (LLM-first, template fallback)."""
+        return self.synthesizer.synthesize(goal, max_retries=max_retries)
 
     def decompose_goal(self, goal: str) -> RequirementsChecklist:
         """Decomposes natural language goal into matching agent manifests or JIT synthesis."""

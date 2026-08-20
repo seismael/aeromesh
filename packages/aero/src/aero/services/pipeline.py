@@ -62,6 +62,54 @@ class DeterministicPipelineOrchestrator:
             "pipeline_results": pipeline_results,
         }
 
+    def execute_manifest_pipeline(
+        self,
+        manifests: List[Any],
+        initial_intent: str,
+        non_interactive: bool = False,
+        enable_diagnostics: bool = False,
+    ) -> Dict[str, Any]:
+        """Execute a sequence of in-memory AgentManifest objects (registry or JIT)."""
+        if not manifests:
+            raise AeroMeshDomainError(
+                "Pipeline must contain at least one agent manifest."
+            )
+
+        pipeline_results = []
+        current_input = initial_intent
+
+        for step_idx, manifest in enumerate(manifests, start=1):
+            step_res = self.runner.run_manifest_file(
+                None,
+                current_input,
+                non_interactive=non_interactive,
+                enable_diagnostics=enable_diagnostics,
+                manifest_object=manifest,
+            )
+
+            verified_output = step_res["execution_result"].get("verified_result", "")
+
+            pipeline_results.append(
+                {
+                    "step": step_idx,
+                    "agent_id": manifest.identity.id,
+                    "agent_name": manifest.identity.name,
+                    "domain": manifest.capabilities.domain,
+                    "input_intent": current_input,
+                    "verified_output": verified_output,
+                    "diagnostics": step_res.get("diagnostics"),
+                }
+            )
+
+            current_input = f"Process output from step {step_idx} ({manifest.identity.id}): {verified_output}"
+
+        return {
+            "pipeline_status": "COMPLETED_GUARANTEED",
+            "steps_executed": len(pipeline_results),
+            "final_verified_result": current_input,
+            "pipeline_results": pipeline_results,
+        }
+
     def execute_consensus_swarm(
         self,
         manifest_paths: List[str],

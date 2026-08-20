@@ -97,37 +97,41 @@ class AeroMasterOrchestrator:
 
                 AeroTerminalUI.render_requirements_checklist(checklist)
 
-            if checklist.is_jit_synthesized:
-                # Execute JIT synthesized manifest
-                self.preflight.verify_agent_feasibility(
-                    checklist.synthesized_manifest, target_str
+            if len(checklist.matched_manifests) == 0:
+                raise AeroMeshDomainError(
+                    f"Goal decomposition produced no executable agents for: '{target_str}'",
+                    ErrorCode.AMX_ERR_DISCOVERY_NO_MATCH,
+                    ExitCode.DISCOVERY_NO_MATCH,
                 )
+
+            if len(checklist.matched_manifests) == 1:
+                # Single matched agent (registry or JIT-synthesized)
+                manifest = checklist.matched_manifests[0]
+                self.preflight.verify_agent_feasibility(manifest, target_str)
                 res = self.runner.run_manifest_file(
                     None,
                     target_str,
                     non_interactive=non_interactive,
                     enable_diagnostics=enable_diagnostics,
-                    manifest_object=checklist.synthesized_manifest,
+                    manifest_object=manifest,
                 )
-                return {"mode": "JIT_AGENT", "result": res, "checklist": checklist}
-            elif len(checklist.matched_manifests) > 1:
-                # Composite Swarm Pipeline
-                agent_paths = [
-                    str(resolve_agent_manifest_path(m_id))
-                    for m_id in checklist.matched_agent_ids
-                ]
-                res = self.pipeline_orchestrator.execute_pipeline(
-                    agent_paths,
+                mode = (
+                    "JIT_AGENT"
+                    if manifest.identity.id.startswith("jit-")
+                    else "AGENT"
+                )
+                return {"mode": mode, "result": res, "checklist": checklist}
+            else:
+                # Composite swarm: registry agents + JIT agents in a pipeline
+                for manifest in checklist.matched_manifests:
+                    self.preflight.verify_agent_feasibility(manifest, target_str)
+                res = self.pipeline_orchestrator.execute_manifest_pipeline(
+                    checklist.matched_manifests,
                     target_str,
                     non_interactive=non_interactive,
                     enable_diagnostics=enable_diagnostics,
                 )
                 return {"mode": "PIPELINE", "result": res, "checklist": checklist}
-            else:
-                # Matched Single Registry Agent
-                target_str = str(
-                    resolve_agent_manifest_path(checklist.matched_agent_ids[0])
-                )
 
         # Mode 4: Inspect JSON content to detect Workflow vs Single Agent
         try:

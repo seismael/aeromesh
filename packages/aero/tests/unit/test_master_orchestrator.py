@@ -47,3 +47,21 @@ def test_master_orchestrator_auto_detect_workflow(monkeypatch):
     
     assert res["mode"] == "WORKFLOW"
     assert res["result"]["status"] == "COMPLETED_SUCCESSFULLY"
+
+
+def test_master_orchestrator_hybrid_goal_dispatch(monkeypatch):
+    """Regression: a hybrid goal (known agent + unknown clause) must not crash."""
+    monkeypatch.setenv("DEEPSEEK_API_KEY", "sk-mock-key")
+    monkeypatch.setenv("GITHUB_TOKEN", "ghp_mock_token_123")
+
+    orchestrator = AeroMasterOrchestrator()
+    res = orchestrator.dispatch(
+        "Audit workspace secrets and generate custom executive PDF summary",
+        non_interactive=True,
+    )
+
+    assert res["mode"] == "PIPELINE"
+    assert res["result"]["steps_executed"] >= 2
+    agent_ids = [s["agent_id"] for s in res["result"]["pipeline_results"]]
+    assert "enterprise-security-auditor" in agent_ids
+    assert any(aid.startswith("jit-") for aid in agent_ids)
