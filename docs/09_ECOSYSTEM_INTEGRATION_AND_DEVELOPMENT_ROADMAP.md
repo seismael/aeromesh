@@ -1,69 +1,49 @@
 # Ecosystem Integration Topology & Development Roadmap
 
-> **Status:** roadmap. Phase 1 items marked "COMPLETED" refer to v0.1 scope; "Sigstore" below is future work (v0.1 uses self-contained Ed25519).
+> **Status: roadmap — partially shipped.** This is the delivery plan, not a
+> completion report. Only Phase 1 is shipped in v1.0.0; later phases are deferred
+> or were removed in the Deep Agents refactor. See `README.md`, `CHANGELOG.md`,
+> and `SECURITY.md` for the authoritative current state.
 
-**Document Version:** 1.0.0 (Authoritative Final Release)  
+**Document Version:** 1.0.0 (roadmap)  
 **Execution Strategy:** 5-Phase Incremental Delivery Plan  
-**Target Platform:** AeroMesh Enterprise Ecosystem  
-**Status:** ALL 5 PHASES 100% IMPLEMENTED, VERIFIED & SHIPPED ✅  
+**Status:** Phase 1 shipped ✅ · Phases 2–5 deferred / removed (see below)
 
 ---
 
 ## 1. Ecosystem Data Contracts & Integration Topology
 
-All core modules interact through unified, type-safe data contracts in `packages/aero`:
+All shipped modules interact through typed data contracts in `packages/aero`:
 
 ```mermaid
 graph TD
-    User([User / Developer]) -->|amx run intent| CLI[packages/aero CLI Engine]
+    User([User / Developer]) -->|amx run intent| CLI[packages/aero CLI]
     Developer([Agent Author]) -->|Manifest Init| Init[amx init]
-    Developer -->|IDE Authoring| VSC[packages/vscode-extension]
 
     Init -->|Generates agent.json| Registry[Git Registry: registry/agents/]
-    VSC -->|Validates agent.json| Registry
-
-    CLI -->|Searches index.json| Registry
-    CLI -->|Resolves Secrets| Vault[Zero-Trust Vault Cascade]
-    CLI -->|Executes Tools| Driver[LangGraph & MCP Drivers]
-    Driver -->|Emits OTel Spans| Telemetry[AeroDiagnosticTracer]
+    CLI -->|Searches local index| Registry
+    CLI -->|Resolves Secrets| Vault[OS-keyring Credential Store]
+    CLI -->|Compiles DAM -> Deep Agents| Driver[create_deep_agent + MCP tools]
+    Driver -->|allowlist| Sandbox[Egress Proxy]
 ```
 
 ---
 
-## 2. 5-Phase Execution Roadmap Completion Status
+## 2. 5-Phase Execution Roadmap — honest status
 
-```
-┌────────────────────────────────────────────────────────────────────────────────────────┐
-│ Phase 1: Standalone AMX CLI MVP & DAM v3.0 Core                         [COMPLETED ✅] │
-│ • Complete `packages/aero` engine and executable `amx` CLI                             │
-│ • Implement `Driver.LangGraph` execution engine driver                                 │
-│ • Deliver Zero-Trust Vault Cascade & Network Sandbox Firewall                          │
-├────────────────────────────────────────────────────────────────────────────────────────┤
-│ Phase 2: Git-as-a-Registry Marketplace & 2-Tier Search Index           [COMPLETED ✅] │
-│ • Establish `registry/agents/` repository & AppData `index.json` cache (<5ms SLA)     │
-│ • Build 2-tier search discovery engine (`amx search`)                                  │
-│ • Release GitHub PR payload generator (`amx share`)                                    │
-├────────────────────────────────────────────────────────────────────────────────────────┤
-│ Phase 3: Developer Tools Suite (VS Code Extension & Test Harness)       [COMPLETED ✅] │
-│ • Build `packages/vscode-extension` with live JSON Schema contributions                │
-│ • Release `packages/aero/src/aero/infrastructure/harness.py` test framework           │
-│ • Implement Sigstore digital signature bundle exporter (`amx export-bundle`)          │
-├────────────────────────────────────────────────────────────────────────────────────────┤
-│ Phase 4: Multi-Language Embeddable SDKs & Session Replay               [COMPLETED ✅] │
-│ • Deliver `packages/sdk-python` (`from aeromesh import AeroKernel`)                   │
-│ • Implement session checkpointing & time-travel replay (`amx run --replay <id>`)       │
-│ • Deliver token cost & USD budget guardrail (`ObservabilityProfile.cost_limit_usd`)   │
-├────────────────────────────────────────────────────────────────────────────────────────┤
-│ Phase 5: Enterprise Mesh Workflows & Swarm Consensus                    [COMPLETED ✅] │
-│ • Deliver Declarative Mesh Workflows engine (`amx workflow run`)                       │
-│ • Launch background crontab daemon (`amx workflow daemon`)                             │
-│ • Implement multi-agent consensus voting swarms (`amx pipeline`)                       │
-└────────────────────────────────────────────────────────────────────────────────────────┘
-```
+| Phase | Scope | Status |
+|---|---|---|
+| 1. Standalone `amx` CLI + DAM v0.1 core | CLI, DAM schema/parser, Deep Agents execution, Ed25519 trust + revocation, encrypted vault, egress sandbox | **SHIPPED** ✅ |
+| 2. Git-as-registry marketplace + search | `amx share`/`install` (shipped); `amx search` (keyword-only, shipped); hosted marketplace + 2-tier vector index (deferred) | **PARTIAL** |
+| 3. Developer tools | VS Code extension (stub `package.json` only); test harness (removed); Sigstore transparency-log bundle (deferred) | **DEFERRED** |
+| 4. Multi-language SDKs + session replay | Python SDK (shipped, thin); TS/Go SDKs (deferred); real session persistence/replay (see `docs/15`) | **PARTIAL** |
+| 5. Workflows + swarm consensus | `amx workflow` / `amx pipeline` removed in the refactor; orchestration is delegated to Deep Agents subagents/planning | **REMOVED** |
 
 ---
 
-## 3. Verification & Compliance Matrix
+## 3. Verification
 
-- **Unit & Integration Test Suite:** **100 / 100 tests passed in 3.26s** (100% pass rate).
-- **Real-World PowerShell Validation:** Verified live across 15 CLI subcommands and 7 enterprise production scenarios.
+- **Offline test suite:** 85 passed (real code; test doubles are confined to
+  `tests/conftest.py`).
+- **Live-model CI:** deferred — needs a real provider key and a real MCP server
+  in CI (see `SECURITY.md` / roadmap).

@@ -5,7 +5,7 @@ from pathlib import Path
 from aero.presentation.cli import main
 
 CLEAN_MANIFEST = """{
-  "manifest_version": "3.0.0",
+  "manifest_version": "0.1.0",
   "identity": { "id": "test-sec-agent", "name": "Test Security Agent", "version": "1.0.0" },
   "capabilities": { "domain": "Security", "tags": ["security", "audit"], "short_description": "Clean manifest for CLI audit test", "evaluation_trigger": "Security audit" },
   "cognitive_runtime": { "persona": "Auditor", "success_criteria": "Audited" },

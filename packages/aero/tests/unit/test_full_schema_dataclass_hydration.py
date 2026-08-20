@@ -1,10 +1,10 @@
-"""Unit tests verifying 100% DAM v3.0 schema property hydration into domain models."""
+"""Unit tests verifying DAM v0.1 schema property hydration into domain models."""
 
 import pytest
 from aero.infrastructure.parser import ManifestParser
 
 FULL_MANIFEST_JSON = """{
-  "manifest_version": "3.0.0",
+  "manifest_version": "0.1.0",
   "identity": {
     "id": "full-test-agent",
     "name": "Full Test Agent Manifest",
@@ -20,7 +20,7 @@ FULL_MANIFEST_JSON = """{
     "domain": "Software Testing",
     "sub_domain": "TDD & Governance",
     "tags": ["testing", "tdd", "schema-validation"],
-    "short_description": "Validates full DAM v3.0 schema field hydration.",
+    "short_description": "Validates full DAM v0.1 schema field hydration.",
     "evaluation_trigger": "Use for verifying domain model completeness.",
     "input_contract": {
       "type": "object",

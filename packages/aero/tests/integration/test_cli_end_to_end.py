@@ -7,7 +7,7 @@ import pytest
 from aero.presentation.cli import main
 
 VALID_DAM_V3_MANIFEST = {
-    "manifest_version": "3.0.0",
+    "manifest_version": "0.1.0",
     "identity": {
         "id": "integration-test-agent",
         "name": "Integration Test PostgreSQL Agent",

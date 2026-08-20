@@ -33,9 +33,9 @@ AeroMesh decouples local agent execution from global community sharing:
 ┌───────────────────────────┴────────────────────────────────────────────┐
 │ GLOBAL MARKETPLACE REGISTRY (`registry/agents/` & GitHub aeromesh/registry)             │
 │                                                                                        │
-│ • Community-Published DAM v3.0 Agent Manifests                                         │
+│ • Community-Published DAM v0.1 Agent Manifests                                         │
 │ • Central `index.json` 2-Tier Search Registry Index                                     │
-│ • Sigstore Attested & Security Guardian Scanned                                       │
+│ • Ed25519 Attested & Security Guardian Scanned                                         │
 └────────────────────────────────────────────────────────────────────────────────────────┘
 ```
 

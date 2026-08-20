@@ -1,5 +1,5 @@
 {
-  "manifest_version": "3.0.0",
+  "manifest_version": "0.1.0",
   "identity": {
     "id": "fintech-payment-auditor",
     "name": "FinTech Stripe & Plaid Payment Security Auditor",

@@ -32,5 +32,6 @@ AeroMesh's security posture rests on four mechanisms:
 
 ## Supported versions
 
-Only the latest commit on `main` is supported for security fixes. v0.1 is alpha
-software; treat it accordingly.
+Only the latest commit on `main` is supported for security fixes. The software is
+`1.0.0`; the DAM standard is `v0.1`. The sandbox is HTTP(S) egress allowlisting,
+not full OS isolation — treat third-party agents accordingly.

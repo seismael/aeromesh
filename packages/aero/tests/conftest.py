@@ -1,11 +1,23 @@
 import os
 import sys
 
+import pytest
+
 # Appends src/ to sys.path so tests can import amx modules natively
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "src")))
 
 # Tests must not spawn real MCP subprocesses (e.g. `npx`).
 os.environ.setdefault("AEROMESH_EXECUTE_TOOLS", "0")
+
+
+@pytest.fixture(autouse=True)
+def _isolate_aeromesh_home(tmp_path_factory, monkeypatch):
+    """Isolate all AeroMesh state (checkpoints, memory, sessions, keys) per test.
+
+    Prevents tests from writing SQLite checkpoints / session metadata into the
+    real user AppData directory.
+    """
+    monkeypatch.setenv("AEROMESH_HOME", str(tmp_path_factory.mktemp("aeromesh-home")))
 
 # ---------------------------------------------------------------------------
 # Test doubles (fakes/mocks live ONLY here, never in production code).

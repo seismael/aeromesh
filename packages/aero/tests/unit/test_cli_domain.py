@@ -32,7 +32,7 @@ def test_agent_manifest_dataclass_immutability():
     provider = CapabilityProviderRequirement(type="mcp", id="test-mcp")
 
     manifest = AgentManifest(
-        manifest_version="3.0.0",
+        manifest_version="0.1.0",
         identity=identity,
         capabilities=caps,
         cognitive_runtime=runtime,

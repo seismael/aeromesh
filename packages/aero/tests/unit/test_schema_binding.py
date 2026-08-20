@@ -4,7 +4,7 @@ import pytest
 from aero.infrastructure.schema_binding import AeroSchemaBindingService
 
 VALID_MANIFEST = """{
-  "manifest_version": "3.0.0",
+  "manifest_version": "0.1.0",
   "identity": { "id": "binding-agent", "name": "Binding Agent", "version": "1.0.0" },
   "capabilities": { "domain": "DevOps", "tags": ["devops"], "short_description": "Test binding", "evaluation_trigger": "Test" },
   "cognitive_runtime": { "persona": "Engineer", "success_criteria": "Done" },

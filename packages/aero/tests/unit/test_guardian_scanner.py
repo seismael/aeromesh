@@ -4,7 +4,7 @@ import pytest
 from aero.infrastructure.guardian import GuardianSecurityScanner
 
 CLEAN_MANIFEST = """{
-  "manifest_version": "3.0.0",
+  "manifest_version": "0.1.0",
   "identity": { "id": "secure-agent", "name": "Secure Agent", "version": "1.0.0" },
   "capabilities": { "domain": "Security", "tags": ["sec"], "short_description": "Clean manifest", "evaluation_trigger": "Test" },
   "cognitive_runtime": { "persona": "Tester", "success_criteria": "Pass" },
@@ -12,7 +12,7 @@ CLEAN_MANIFEST = """{
 }"""
 
 HARDCODED_MANIFEST = """{
-  "manifest_version": "3.0.0",
+  "manifest_version": "0.1.0",
   "identity": { "id": "leaky-agent", "name": "Leaky Agent", "version": "1.0.0" },
   "capabilities": { "domain": "Security", "tags": ["sec"], "short_description": "Leaky manifest", "evaluation_trigger": "Test" },
   "cognitive_runtime": { "persona": "Tester", "success_criteria": "Pass" },

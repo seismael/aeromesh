@@ -1,42 +1,38 @@
 """AeroMesh runner: parse + resolve credentials + execute via Deep Agents."""
 
-import json
 import time
-from pathlib import Path
+import uuid
 from typing import Any, Dict, Optional
 
-from aero.domain.paths import get_aeromesh_home
+from aero.domain.errors import AeroMeshDomainError, ErrorCode, ExitCode
+from aero.domain.paths import resolve_agent_manifest_path
 from aero.infrastructure.parser import ManifestParser
 from aero.infrastructure.vault import ZeroTrustVaultResolver
 from aero.services.deepagents_runner import DeepAgentsExecutionDriver
+from aero.services.session import SessionRegistry
 
 
 class AeroAgentRunnerService:
-    """Parses a DAM manifest, resolves credentials, executes via Deep Agents, checkpoints."""
+    """Parses a DAM manifest, resolves credentials, executes via Deep Agents, and
+    records the session so it can be resumed across CLI invocations.
+
+    The Deep Agents checkpointer (SQLite) persists the conversation; the session
+    registry maps a session id to its thread id and agent for listing/resume.
+    """
 
     def __init__(
-        self, parser: ManifestParser = None, vault: ZeroTrustVaultResolver = None
+        self,
+        parser: ManifestParser = None,
+        vault: ZeroTrustVaultResolver = None,
+        sessions: SessionRegistry = None,
     ):
         self.parser = parser or ManifestParser()
         self.vault = vault or ZeroTrustVaultResolver()
+        self.sessions = sessions or SessionRegistry()
 
-    def get_checkpoints_dir(self) -> Path:
-        cp_dir = get_aeromesh_home() / "checkpoints"
-        cp_dir.mkdir(parents=True, exist_ok=True)
-        return cp_dir
-
-    def save_checkpoint(self, session_id: str, data: Dict[str, Any]) -> Path:
-        cp_file = self.get_checkpoints_dir() / f"{session_id}.json"
-        with open(cp_file, "w", encoding="utf-8") as f:
-            json.dump(data, f, indent=2)
-        return cp_file
-
-    def load_checkpoint(self, session_id: str) -> Optional[Dict[str, Any]]:
-        cp_file = self.get_checkpoints_dir() / f"{session_id}.json"
-        if not cp_file.exists():
-            return None
-        with open(cp_file, "r", encoding="utf-8") as f:
-            return json.load(f)
+    @staticmethod
+    def _new_session_id(agent_id: str) -> str:
+        return f"{agent_id}-{int(time.time())}-{uuid.uuid4().hex[:8]}"
 
     def run_manifest_file(
         self,
@@ -52,10 +48,9 @@ class AeroAgentRunnerService:
         del enable_diagnostics, execute_tools  # handled natively by Deep Agents
 
         if replay_session_id:
-            checkpoint = self.load_checkpoint(replay_session_id)
-            if checkpoint:
-                checkpoint["is_replayed"] = True
-                return checkpoint
+            return self._resume_session(
+                replay_session_id, user_intent, non_interactive=non_interactive
+            )
 
         if manifest_object:
             manifest = manifest_object
@@ -69,19 +64,19 @@ class AeroAgentRunnerService:
             manifest.providers, non_interactive=non_interactive
         )
 
+        session_id = self._new_session_id(manifest.identity.id)
+        thread_id = session_id
         driver = DeepAgentsExecutionDriver(manifest, credentials=credentials)
-        result = driver.execute(user_intent)
+        try:
+            result = driver.execute(user_intent, thread_id=thread_id)
+        finally:
+            driver.close()
 
-        session_id = f"session-{manifest.identity.id}-{int(time.time())}"
-        self.save_checkpoint(
+        self.sessions.record(
             session_id,
-            {
-                "session_id": session_id,
-                "agent_id": manifest.identity.id,
-                "intent": user_intent,
-                "execution_result": result,
-                "credentials_resolved": list(credentials.keys()),
-            },
+            agent_id=manifest.identity.id,
+            thread_id=thread_id,
+            intent=user_intent,
         )
 
         return {
@@ -91,3 +86,56 @@ class AeroAgentRunnerService:
             "diagnostics": None,
             "session_id": session_id,
         }
+
+    def _resume_session(
+        self, session_id: str, user_intent: Optional[str], non_interactive: bool
+    ) -> Dict[str, Any]:
+        session = self.sessions.get(session_id)
+        if not session:
+            raise AeroMeshDomainError(
+                f"Unknown session '{session_id}' (run `amx history` to list sessions).",
+                ErrorCode.AMX_ERR_DISCOVERY_NO_MATCH,
+                ExitCode.DISCOVERY_NO_MATCH,
+            )
+
+        agent_id = session["agent_id"]
+        thread_id = session["thread_id"]
+        resolved = resolve_agent_manifest_path(agent_id)
+        if not resolved:
+            raise AeroMeshDomainError(
+                f"Cannot resume session '{session_id}': manifest for agent "
+                f"'{agent_id}' not found.",
+                ErrorCode.AMX_ERR_DISCOVERY_NO_MATCH,
+                ExitCode.DISCOVERY_NO_MATCH,
+            )
+
+        manifest = self.parser.parse_file(str(resolved))
+        credentials = self.vault.resolve_requirements(
+            manifest.providers, non_interactive=non_interactive
+        )
+
+        intent = user_intent or "Continue."
+        driver = DeepAgentsExecutionDriver(manifest, credentials=credentials)
+        try:
+            result = driver.execute(intent, thread_id=thread_id)
+        finally:
+            driver.close()
+
+        self.sessions.record(
+            session_id,
+            agent_id=agent_id,
+            thread_id=thread_id,
+            intent=intent,
+        )
+
+        return {
+            "manifest": manifest,
+            "credentials_resolved": list(credentials.keys()),
+            "execution_result": result,
+            "diagnostics": None,
+            "session_id": session_id,
+            "is_resumed": True,
+        }
+
+    def list_sessions(self):
+        return self.sessions.list()

@@ -2,7 +2,7 @@
 
 Thank you for your interest in contributing to **AeroMesh**! We welcome and deeply appreciate contributions from developers, researchers, AI engineers, and open-source enthusiasts around the world.
 
-AeroMesh is an open-source, enterprise-grade autonomous AI agent ecosystem and declarative mesh workflow engine built on the **Declarative Agent Manifest (DAM v3.0)** standard.
+AeroMesh is an open-source **declarative agent standard (DAM v0.1)** with signing, sandboxing, and a marketplace layer, compiled into **LangChain Deep Agents** for execution.
 
 ---
 
@@ -39,13 +39,10 @@ You can contribute new pre-configured agent manifests to the [`registry/agents/`
   amx run registry/agents/your-agent.json "Sample intent description"
   ```
 
-### 2. Submitting Declarative Mesh Workflows
-You can contribute reusable multi-agent DAG topologies to the [`registry/workflows/`](registry/workflows) directory!
-- Ensure your workflow manifest validates against [`schemas/declarative-workflow.schema.json`](schemas/declarative-workflow.schema.json).
-- Verify step node dependencies and non-blocking execution:
-  ```bash
-  amx workflow run registry/workflows/your-workflow.json
-  ```
+### 2. Submitting New Declarative Agents (multi-agent orchestration)
+Multi-agent orchestration is delegated to **Deep Agents** (subagents + planning), declared via the DAM `sub_agent`/`skill` providers — not a separate workflow engine.
+- Add `sub_agent` and `skill` entries under `requirements.providers` in your `agent.json`.
+- The historical `registry/workflows/` files and `amx workflow` command were removed in the v1.0.0 refactor (see `docs/10`).
 
 ### 3. Core Engine & Package Enhancements
 Want to improve the engine performance, add new MCP drivers, or build monorepo packages under `packages/`?
@@ -99,7 +96,7 @@ Found a bug or security issue? Please open a GitHub Issue with:
    ```
 
 2. **Verify Tests**:
-   Ensure all 39+ unit and integration tests pass before submitting:
+   Ensure the full offline test suite passes before submitting:
    ```bash
    python -m pytest packages/aero/tests/
    ```

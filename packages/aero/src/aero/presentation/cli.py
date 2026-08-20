@@ -9,7 +9,6 @@ from typing import List
 from aero.domain.errors import AeroMeshDomainError, ErrorCode, ExitCode
 from aero.domain.paths import (
     get_aeromesh_agents_dir,
-    get_aeromesh_home,
     resolve_agent_manifest_path,
 )
 from aero.services.runner import AeroAgentRunnerService
@@ -67,7 +66,7 @@ def main(args: List[str] = None) -> int:
         help="Emit real-time OTel diagnostic metrics",
     )
     run_parser.add_argument(
-        "--replay", help="Replay a previously checkpointed session ID"
+        "--replay", help="Resume a previous session by session ID (continue its thread)"
     )
 
     # Command: amx init <agent_id>
@@ -78,7 +77,7 @@ def main(args: List[str] = None) -> int:
 
     # Command: amx history
     subparsers.add_parser(
-        "history", help="List past session checkpoints for time-travel replay"
+        "history", help="List past run sessions (resumable via `amx run --replay`)"
     )
 
     # Command: amx vault <subcommand>
@@ -234,7 +233,7 @@ def main(args: List[str] = None) -> int:
     if parsed.command == "init":
         file_name = f"{parsed.agent_id}.agent.json"
         template = {
-            "manifest_version": "3.0.0",
+            "manifest_version": "0.1.0",
             "identity": {
                 "id": parsed.agent_id,
                 "name": parsed.agent_id.replace("-", " ").title(),
@@ -255,16 +254,14 @@ def main(args: List[str] = None) -> int:
         return 0
 
     if parsed.command == "history":
-        chk_dir = get_aeromesh_home() / "checkpoints"
-        if chk_dir.exists():
-            files = list(chk_dir.glob("*.json"))
-            print(f"📜 Session History Checkpoints ({len(files)}):")
-            for f in files:
-                print(f"  • {f.stem}")
+        sessions = runner.list_sessions()
+        if sessions:
+            print(f"📜 Sessions ({len(sessions)}):")
+            for s in sessions:
+                intent = (s.get("intent") or "")[:50]
+                print(f"  • {s['session_id']}  agent={s.get('agent_id')}  \"{intent}\"")
         else:
-            print(
-                "📜 No session checkpoints found in %LOCALAPPDATA%\\AeroMesh\\checkpoints\\"
-            )
+            print("📜 No sessions found (run an agent to create one).")
         return 0
 
     if parsed.command == "vault":
@@ -367,27 +364,20 @@ def main(args: List[str] = None) -> int:
     if parsed.command == "run":
         try:
             if parsed.replay:
-                # Checkpoint replay: requires a resolvable manifest path.
-                resolved = resolve_agent_manifest_path(parsed.manifest)
-                if not resolved:
-                    raise AeroMeshDomainError(
-                        f"Agent file or manifest ID '{parsed.manifest}' not found.",
-                        ErrorCode.AMX_ERR_DISCOVERY_NO_MATCH,
-                        ExitCode.DISCOVERY_NO_MATCH,
-                    )
                 res = runner.run_manifest_file(
-                    str(resolved),
-                    parsed.intent or "Replay",
+                    parsed.manifest,
+                    parsed.intent,
                     non_interactive=parsed.non_interactive,
                     enable_diagnostics=parsed.diagnostics,
                     replay_session_id=parsed.replay,
                 )
-                if res.get("is_replayed"):
+                if res.get("is_resumed"):
+                    agent = res["manifest"].identity.id
                     print(
-                        f"🔄 [REPLAY] Session '{res.get('session_id')}' (Agent: {res.get('agent_id')})"
+                        f"🔄 [RESUME] Session '{res.get('session_id')}' (Agent: {agent})"
                     )
                 AeroTerminalUI.render_result(
-                    res.get("execution_result", {}).get("verified_result", "Replayed.")
+                    res.get("execution_result", {}).get("verified_result", "Resumed.")
                 )
                 return 0
 

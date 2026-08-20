@@ -11,7 +11,7 @@ def test_discovery_engine_indexing_and_tier1_search():
     try:
         agent_json = tmp_path / "test-db-tuner.json"
         agent_json.write_text("""{
-  "manifest_version": "3.0.0",
+  "manifest_version": "0.1.0",
   "identity": {
     "id": "test-db-tuner",
     "name": "Database Query Tuner",

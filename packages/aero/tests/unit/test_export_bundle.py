@@ -6,7 +6,7 @@ from aero.infrastructure.guardian import GuardianSecurityScanner
 from aero.presentation.cli import main
 
 MANIFEST_TEXT = """{
-  "manifest_version": "3.0.0",
+  "manifest_version": "0.1.0",
   "identity": { "id": "export-test-agent", "name": "Export Test Agent", "version": "1.0.0" },
   "capabilities": { "domain": "Security", "tags": ["sec"], "short_description": "Export test", "evaluation_trigger": "Test" },
   "cognitive_runtime": { "persona": "Auditor", "success_criteria": "Done" },

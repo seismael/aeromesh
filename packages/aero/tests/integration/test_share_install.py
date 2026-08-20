@@ -7,7 +7,7 @@ from aero.presentation.cli import main
 from aero.domain.paths import get_aeromesh_agents_dir
 
 SAMPLE_MANIFEST = {
-    "manifest_version": "3.0.0",
+    "manifest_version": "0.1.0",
     "identity": {
         "id": "shared-test-agent",
         "name": "Shared Test Agent",

@@ -13,22 +13,22 @@ This is honest, self-contained signing — **not** Sigstore (no transparency log
 
 ## 2. Credential vault
 
-Credentials are resolved in this order: override env → process env → `~/.aeromesh/credentials.json` → `~/.aeromesh/config.json` → desktop `tokens.txt`.
+Credentials are resolved in this order: override env → process env → **OS keyring** (encrypted, primary) → `~/.aeromesh/credentials.json` (plaintext fallback, only if the keyring is unavailable) → `~/.aeromesh/config.json` → desktop `tokens.txt`.
 
 - **Interactive sessions**: discovered keys require explicit user approval before use.
 - **Non-interactive sessions**: keys are used directly; a missing required credential raises `AMX_ERR_VAULT_KEY_MISSING`.
 
-> **Honesty note:** `credentials.json` is stored in **plaintext** locally. OS-keyring encryption is a roadmap item, not shipped.
+> **Honesty note:** new secrets are stored encrypted in the OS keyring; the plaintext `credentials.json` is written only as a loudly-warned fallback when no OS keyring is available.
 
 ## 3. Network sandbox
 
 `NetworkSandboxFirewall` enforces a manifest's `allowed_domains`:
 
 - Exact and `*.suffix` wildcard matching.
-- Enforced on remote (SSE) MCP endpoints (`McpSseDriver.connect`).
+- A local egress proxy (`LocalEgressProxy`) injects `HTTP_PROXY`/`HTTPS_PROXY` into MCP stdio subprocesses so their outbound HTTP(S) is gated by the allowlist (CONNECT tunneling for HTTPS).
 - Violations raise `AMX_ERR_DOMAIN_BLOCKED` (exit 21).
 
-> **Honesty note:** v0.1 gates remote MCP endpoints, not arbitrary subprocess network. A full egress proxy is a roadmap item.
+> **Honesty note:** this is HTTP(S) egress allowlisting, **not** full OS-level isolation — a malicious MCP server can bypass it via raw sockets or DNS. See `SECURITY.md`.
 
 ## 4. Static scan (`amx audit`)
 

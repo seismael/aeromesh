@@ -5,14 +5,17 @@ It is a declarative, signed, sandboxed standard that compiles into Deep Agents,
 which provide planning, subagents, skills, filesystem, and HITL out of the box.
 """
 
+import asyncio
 import json
 import os
+from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from langchain_core.callbacks import BaseCallbackHandler
 
 from aero.domain.models import AgentManifest
 from aero.domain.errors import AeroMeshDomainError, ErrorCode, ExitCode
+from aero.domain.paths import get_aeromesh_home
 
 # Approximate USD price per million tokens (documented estimate, not billing-grade).
 PRICE_PER_MILLION = {
@@ -64,6 +67,47 @@ PROVIDER_ENV_VARS = {
     "anthropic": "ANTHROPIC_API_KEY",
     "gemini": "GEMINI_API_KEY",
 }
+
+
+def default_checkpoint_db() -> Path:
+    """SQLite file backing the persistent checkpointer (thread/session state)."""
+    return get_aeromesh_home() / "checkpoints.sqlite"
+
+
+def default_store_db() -> Path:
+    """SQLite file backing the persistent store (long-term memory)."""
+    return get_aeromesh_home() / "memory.sqlite"
+
+
+async def build_async_checkpointer(db_path: Optional[Path] = None) -> Any:
+    """Persistent LangGraph checkpointer (async SQLite) for cross-process resume.
+
+    Async because the agent graph runs via ``ainvoke`` (MCP tools are async-only).
+    """
+    import aiosqlite
+
+    from langgraph.checkpoint.sqlite.aio import AsyncSqliteSaver
+
+    path = db_path or default_checkpoint_db()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    conn = await aiosqlite.connect(str(path))
+    saver = AsyncSqliteSaver(conn)
+    await saver.setup()
+    return saver
+
+
+async def build_async_store(db_path: Optional[Path] = None) -> Any:
+    """Persistent LangGraph store (async SQLite) for long-term memory."""
+    import aiosqlite
+
+    from langgraph.store.sqlite.aio import AsyncSqliteStore
+
+    path = db_path or default_store_db()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    conn = await aiosqlite.connect(str(path))
+    store = AsyncSqliteStore(conn)
+    await store.setup()
+    return store
 
 
 def resolve_model(credentials: Optional[Dict[str, str]] = None) -> Any:
@@ -272,14 +316,20 @@ class DeepAgentsExecutionDriver:
 
         # Persistence: wire a checkpointer (session resume / HITL) and a store
         # (long-term memory) so Deep Agents' built-in capabilities are available.
-        if checkpointer is None:
-            from langgraph.checkpoint.memory import MemorySaver
-
-            checkpointer = MemorySaver()
-        if store is None:
-            from langgraph.store.memory import InMemoryStore
-
-            store = InMemoryStore()
+        # Defaults are SQLite-backed so state survives process restarts; test code
+        # may inject in-memory backends. The graph runs via ``ainvoke`` (MCP tools
+        # are async-only), so async SQLite backends live on a driver-lifetime loop.
+        self._loop = asyncio.new_event_loop()
+        try:
+            if checkpointer is None:
+                checkpointer = self._loop.run_until_complete(
+                    build_async_checkpointer()
+                )
+            if store is None:
+                store = self._loop.run_until_complete(build_async_store())
+        except Exception:
+            self._loop.close()
+            raise
         self.checkpointer = checkpointer
         self.store = store
 
@@ -316,10 +366,9 @@ class DeepAgentsExecutionDriver:
         if self.rubric:
             state["rubric"] = self.rubric
         # Async invocation: langchain-mcp-adapters tools are async-only, so the
-        # graph must run on the event loop for tool calls to work.
-        import asyncio
-
-        result = asyncio.run(self.agent.ainvoke(state, config=config))
+        # graph must run on the event loop for tool calls to work. We reuse the
+        # driver-lifetime loop so the async SQLite backends stay valid.
+        result = self._loop.run_until_complete(self.agent.ainvoke(state, config=config))
         messages = result.get("messages", [])
         final_text = messages[-1].content if messages else ""
         rubric_status = result.get("_rubric_status")
@@ -352,3 +401,26 @@ class DeepAgentsExecutionDriver:
             "rubric_status": rubric_status,
             "usage": usage,
         }
+
+    def close(self) -> None:
+        """Release resources (SQLite connections, egress proxy, event loop)."""
+        if self.proxy is not None:
+            try:
+                self.proxy.stop()
+            except Exception:  # noqa: BLE001 — best-effort cleanup
+                pass
+
+        async def _close_backends() -> None:
+            for backend in (self.checkpointer, self.store):
+                conn = getattr(backend, "conn", None)
+                if conn is not None:
+                    await conn.close()
+
+        try:
+            self._loop.run_until_complete(_close_backends())
+        except Exception:  # noqa: BLE001 — best-effort cleanup
+            pass
+        try:
+            self._loop.close()
+        except Exception:  # noqa: BLE001 — best-effort cleanup
+            pass
