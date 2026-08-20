@@ -185,9 +185,18 @@ class DeepAgentsExecutionDriver:
             proxy_env = self.proxy.proxy_env()
 
         if mcp_tools is None:
-            mcp_tools = build_mcp_tools(
-                manifest, self.credentials, proxy_env=proxy_env
-            )
+            try:
+                mcp_tools = build_mcp_tools(
+                    manifest, self.credentials, proxy_env=proxy_env
+                )
+            except Exception as e:  # noqa: BLE001 — degrade gracefully, no crash
+                import sys
+
+                print(
+                    f"[warn] MCP tools unavailable; running without tools: {e}",
+                    file=sys.stderr,
+                )
+                mcp_tools = []
 
         from deepagents import create_deep_agent
 
