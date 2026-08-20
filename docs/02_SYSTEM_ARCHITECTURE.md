@@ -21,9 +21,11 @@ Dependency direction: `presentation → services → infrastructure → domain`.
 ## 2. Execution flow (`amx run`)
 
 1. **Parse** — validate the manifest against the DAM v0.1 schema, hydrate into dataclasses.
-2. **Preflight** — ensure a provider and required credentials are available.
+2. **Preflight** — ensure a provider and required credentials are available (offline fallback if none).
 3. **Resolve credentials** — via the vault resolver (env/config/credential-file, with explicit approval in interactive sessions).
-4. **Execute** — the LangGraph driver runs a plan → execute → verify graph, binding the model provider and MCP tools.
+4. **Execute** — the LangGraph driver runs plan → execute → verify:
+   - **execute** invokes the manifest's declared MCP tools (`required_tools`) over stdio/SSE, then feeds the tool results back into the LLM prompt;
+   - **verify** marks success based on non-empty output (non-vacuous).
 5. **Checkpoint** — save a session checkpoint for replay.
 
 ## 3. JIT synthesis flow

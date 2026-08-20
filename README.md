@@ -17,10 +17,11 @@ The engine (`amx`) validates, signs, verifies, sandboxes, and executes these man
 - **Trusted install gating** — `amx install` verifies a marketplace agent's signature against `registry/trusted/<id>.pub` and refuses mismatches (`--insecure` opts out).
 - **LLM-driven JIT synthesis** — `amx run "<natural-language goal>"` decomposes the goal, reuses registry agents where they match, and synthesizes a schema-valid manifest for the rest when a live provider key is present (template fallback offline).
 - **Network sandbox** — a manifest's `allowed_domains` is enforced for remote (SSE) MCP tool endpoints.
+- **Real tool execution** — the driver invokes a manifest's declared MCP tools (`required_tools`) over stdio/SSE and feeds the results back to the LLM before verifying the output (degrades gracefully if a tool server is unavailable).
 - **Workflows (DWM)** — DAG execution with cycle detection, dependency-aware async concurrency, and crontab scheduling.
 - **Multi-provider LLM binding** — DeepSeek, Anthropic, OpenAI, Gemini (real API calls when a real key is set; mock only for clearly-marked test keys).
 
-> **Honesty note:** `amx run` requires a live provider API key to actually call a model. Without one, execution falls back to a clearly-marked offline stub. The mock-first behavior of earlier versions is gone.
+> **Honesty note:** `amx run` requires a live provider API key to actually call a model, and a running MCP tool server to actually execute tools. Without them, execution degrades to a clearly-marked offline/mock fallback. The mock-first behavior of earlier versions is gone.
 
 ---
 
