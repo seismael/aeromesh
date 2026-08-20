@@ -82,12 +82,19 @@ def verify_manifest_dict(manifest: Dict[str, Any], attestation: Dict[str, Any]) 
     return verify_bytes(attestation["public_key"].encode(), raw, signature)
 
 
+def _normalize_pem(text: str) -> str:
+    """Normalize PEM text for comparison (tolerate LF vs CRLF line endings)."""
+    return text.replace("\r\n", "\n").strip()
+
+
 def verify_manifest_trusted(
     manifest: Dict[str, Any],
     attestation: Dict[str, Any],
     trusted_public_key_pem: bytes,
 ) -> bool:
     """Verify both the signature AND that it was produced by a specific trusted key."""
-    if attestation.get("public_key") != trusted_public_key_pem.decode():
+    if _normalize_pem(attestation.get("public_key", "")) != _normalize_pem(
+        trusted_public_key_pem.decode()
+    ):
         return False
     return verify_manifest_dict(manifest, attestation)

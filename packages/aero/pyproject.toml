@@ -13,6 +13,7 @@ dependencies = [
     "rich>=13.7.0",
     "langgraph>=0.0.10",
     "psutil>=5.9.0",
+    "cryptography>=42.0.0",
 ]
 
 [project.scripts]

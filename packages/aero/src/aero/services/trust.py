@@ -1,0 +1,78 @@
+"""Trust service: sign manifests, verify them, and gate installs on trusted keys."""
+
+import json
+from pathlib import Path
+from typing import Any, Dict, Optional, Tuple
+
+from aero.domain import paths
+from aero.infrastructure import keystore
+from aero.infrastructure.attestation import (
+    sign_manifest_dict,
+    verify_manifest_dict,
+    verify_manifest_trusted,
+)
+
+SIG_SUFFIX = ".sig"
+
+
+def generate_and_store_keypair(name: str = keystore.DEFAULT_KEY_NAME) -> Tuple[Path, Path]:
+    return keystore.generate_and_store_keypair(name)
+
+
+def _sidecar_path(manifest_path: str) -> Path:
+    p = Path(manifest_path)
+    return p.with_suffix(p.suffix + SIG_SUFFIX)
+
+
+def _load_manifest(manifest_path: str) -> Dict[str, Any]:
+    return json.loads(Path(manifest_path).read_text(encoding="utf-8"))
+
+
+def sign_manifest_file(manifest_path: str, key_name: str = keystore.DEFAULT_KEY_NAME) -> Dict[str, Any]:
+    """Sign a manifest and write a `<manifest>.sig` sidecar attestation."""
+    data = _load_manifest(manifest_path)
+    priv = keystore.load_private_key(key_name)
+    attestation = sign_manifest_dict(data, priv)
+    _sidecar_path(manifest_path).write_text(
+        json.dumps(attestation, indent=2), encoding="utf-8"
+    )
+    return attestation
+
+
+def load_attestation(manifest_path: str) -> Optional[Dict[str, Any]]:
+    sp = _sidecar_path(manifest_path)
+    if not sp.exists():
+        return None
+    return json.loads(sp.read_text(encoding="utf-8"))
+
+
+def verify_manifest_file(manifest_path: str) -> Tuple[bool, str]:
+    """Verify a manifest against its sidecar attestation (signature + sha256)."""
+    attestation = load_attestation(manifest_path)
+    if attestation is None:
+        return False, "no attestation sidecar found"
+    data = _load_manifest(manifest_path)
+    if verify_manifest_dict(data, attestation):
+        return True, "signature valid"
+    return False, "signature invalid or manifest tampered"
+
+
+def trusted_public_key(agent_id: str) -> Optional[bytes]:
+    p = paths.get_aeromesh_workspace_trusted_dir() / f"{agent_id}.pub"
+    if p.exists():
+        return p.read_bytes()
+    return None
+
+
+def verify_manifest_trusted_file(manifest_path: str, agent_id: str) -> Tuple[bool, str]:
+    """Verify a manifest's signature AND that it was signed by the trusted key for agent_id."""
+    pub = trusted_public_key(agent_id)
+    if pub is None:
+        return False, f"no trusted public key for '{agent_id}'"
+    attestation = load_attestation(manifest_path)
+    if attestation is None:
+        return False, "no attestation sidecar found"
+    data = _load_manifest(manifest_path)
+    if verify_manifest_trusted(data, attestation, pub):
+        return True, "verified against trusted key"
+    return False, "signature not from trusted key or manifest tampered"

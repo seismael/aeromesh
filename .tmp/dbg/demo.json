@@ -1,0 +1,1 @@
+{"manifest_version": "0.1.0", "identity": {"id": "demo-agent", "name": "Demo", "version": "0.1.0"}, "capabilities": {"domain": "Demo", "tags": ["demo"], "short_description": "Demo agent", "evaluation_trigger": "Manual"}, "cognitive_runtime": {"persona": "Assistant", "success_criteria": "Done"}, "requirements": {"providers": []}}

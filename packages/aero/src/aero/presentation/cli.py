@@ -16,6 +16,8 @@ from aero.services.runner import AeroAgentRunnerService
 from aero.services.pipeline import DeterministicPipelineOrchestrator
 from aero.services.workflow import AeroWorkflowEngine
 from aero.services.discovery import AeroDiscoveryEngine
+from aero.services import trust
+from aero.infrastructure import keystore
 from aero.infrastructure.guardian import GuardianSecurityScanner
 from aero.presentation.ui import AeroTerminalUI
 
@@ -159,14 +161,38 @@ def main(args: List[str] = None) -> int:
         "install",
         help="Install an agent manifest into local store (~/.aeromesh/agents/)",
     )
-    inst_parser.add_argument("manifest", help="Path to DAM v3.0 agent.json file")
+    inst_parser.add_argument("manifest", help="Path to DAM v0.1 agent.json file")
+    inst_parser.add_argument(
+        "--insecure",
+        action="store_true",
+        help="Skip Ed25519 trust verification for marketplace agents",
+    )
 
     # Command: amx share <manifest_file>
     share_parser = subparsers.add_parser(
         "share",
-        help="Share a local agent manifest by generating a registry pull request payload",
+        help="Share a local agent manifest by generating a signed registry payload",
     )
-    share_parser.add_argument("manifest", help="Path to DAM v3.0 agent.json file")
+    share_parser.add_argument("manifest", help="Path to DAM v0.1 agent.json file")
+
+    # Command: amx keygen [--name <key>]
+    keygen_parser = subparsers.add_parser(
+        "keygen", help="Generate an Ed25519 signing keypair for agent attestation"
+    )
+    keygen_parser.add_argument("--name", default=None, help="Key name (default: 'default')")
+
+    # Command: amx sign <manifest_file> [--key <key>]
+    sign_parser = subparsers.add_parser(
+        "sign", help="Sign an agent manifest with an Ed25519 key (writes .sig sidecar)"
+    )
+    sign_parser.add_argument("manifest", help="Path to DAM v0.1 agent.json file")
+    sign_parser.add_argument("--key", default=None, help="Key name (default: 'default')")
+
+    # Command: amx verify <manifest_file>
+    verify_parser = subparsers.add_parser(
+        "verify", help="Verify an agent manifest's Ed25519 signature"
+    )
+    verify_parser.add_argument("manifest", help="Path to DAM v0.1 agent.json file")
 
     # Command: amx version
     subparsers.add_parser("version", help="Show Aero Agent Engine version")
@@ -174,8 +200,40 @@ def main(args: List[str] = None) -> int:
     parsed = parser.parse_args(args)
 
     if parsed.command == "version":
-        print("aero / amx version 1.0.0 (AeroMesh DAM v3.0 OpenAgent Standard)")
+        print("aero / amx version 0.1.0 (AeroMesh DAM v0.1 OpenAgent Standard)")
         return 0
+
+    if parsed.command == "keygen":
+        name = getattr(parsed, "name", None) or keystore.DEFAULT_KEY_NAME
+        priv_path, pub_path = trust.generate_and_store_keypair(name)
+        print(f"🔑 Generated Ed25519 keypair '{name}':")
+        print(f"  Private: {priv_path}")
+        print(f"  Public:  {pub_path}")
+        return 0
+
+    if parsed.command == "sign":
+        try:
+            key_name = getattr(parsed, "key", None) or keystore.DEFAULT_KEY_NAME
+            attestation = trust.sign_manifest_file(parsed.manifest, key_name)
+            print(f"✍️  Signed '{parsed.manifest}' (Ed25519):")
+            print(f"  SHA-256: {attestation['sha256']}")
+            print(f"  Sidecar: {parsed.manifest}.sig")
+            return 0
+        except Exception as e:
+            AeroTerminalUI.render_error(str(e))
+            return 10
+
+    if parsed.command == "verify":
+        try:
+            ok, reason = trust.verify_manifest_file(parsed.manifest)
+            if ok:
+                print(f"✅ Manifest '{parsed.manifest}' signature valid ({reason}).")
+                return 0
+            print(f"❌ Manifest '{parsed.manifest}' NOT verified: {reason}.")
+            return 1
+        except Exception as e:
+            AeroTerminalUI.render_error(str(e))
+            return 10
 
     if parsed.command == "search":
         discovery = AeroDiscoveryEngine()
@@ -322,6 +380,21 @@ def main(args: List[str] = None) -> int:
     if parsed.command == "install":
         try:
             manifest = runner.parser.parse_file(parsed.manifest)
+
+            # Trust gate: if a trusted public key exists for this agent in the
+            # git-registry trust store, the manifest MUST be signed by it.
+            if not parsed.insecure:
+                if trust.trusted_public_key(manifest.identity.id) is not None:
+                    ok, reason = trust.verify_manifest_trusted_file(
+                        parsed.manifest, manifest.identity.id
+                    )
+                    if not ok:
+                        raise AeroMeshDomainError(
+                            f"Refusing to install untrusted agent '{manifest.identity.id}': {reason}. Use --insecure to override.",
+                            ErrorCode.AMX_ERR_SCHEMA_VIOLATION,
+                            ExitCode.SCHEMA_VIOLATION,
+                        )
+
             agents_dir = get_aeromesh_agents_dir()
             agents_dir.mkdir(parents=True, exist_ok=True)
             target_path = agents_dir / f"{manifest.identity.id}.json"
@@ -356,6 +429,13 @@ def main(args: List[str] = None) -> int:
                 "sha256": sha256_hash,
                 "pull_request_target": f"registry/agents/{manifest.identity.id}.json",
             }
+
+            # Attach an Ed25519 attestation if a signing key exists.
+            try:
+                payload["attestation"] = trust.sign_manifest_file(parsed.manifest)
+            except Exception:
+                payload["attestation"] = None
+
             print(f"🚀 Registry Share Payload for '{manifest.identity.id}':")
             print(json.dumps(payload, indent=2))
             return 0

@@ -66,6 +66,11 @@ def get_aeromesh_workspace_registry_dir() -> Path:
     return Path(__file__).resolve().parents[4] / "registry" / "agents"
 
 
+def get_aeromesh_workspace_trusted_dir() -> Path:
+    """Returns the git-registry trust store (registry/trusted) holding public keys."""
+    return get_aeromesh_workspace_registry_dir().parent / "trusted"
+
+
 def resolve_agent_manifest_path(target_str: str) -> Optional[Path]:
     """Resolves target string to a manifest Path using OS-agnostic resolution priority:
     1. Direct absolute/relative file path
