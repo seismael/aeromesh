@@ -101,3 +101,31 @@ def verify_manifest_trusted_file(manifest_path: str, agent_id: str) -> Tuple[boo
     if verify_manifest_trusted(data, attestation, pub):
         return True, "verified against trusted key"
     return False, "signature not from trusted key or manifest tampered"
+
+
+def verify_workflow_references(workflow: Any) -> Tuple[bool, str]:
+    """Recursive trust: every agent a workflow references must be verified.
+
+    A workflow is runnable only when (1) the workflow's own signature is trusted
+    and (2) each referenced agent resolves to a signed, trusted, non-revoked
+    manifest. This composes a verified workflow out of verified agents.
+    """
+    agent_ids: list = []
+    seen = set()
+    for step in workflow.steps:
+        if step.agent_id not in seen:
+            seen.add(step.agent_id)
+            agent_ids.append(step.agent_id)
+
+    for agent_id in agent_ids:
+        resolved = paths.resolve_agent_manifest_path(agent_id)
+        if resolved is None:
+            return False, f"referenced agent '{agent_id}' not found"
+        if is_revoked(agent_id):
+            return False, f"referenced agent '{agent_id}' has a REVOKED key"
+        if trusted_public_key(agent_id) is None:
+            return False, f"referenced agent '{agent_id}' has no trusted key"
+        ok, reason = verify_manifest_trusted_file(str(resolved), agent_id)
+        if not ok:
+            return False, f"referenced agent '{agent_id}' not verified: {reason}"
+    return True, f"all {len(agent_ids)} referenced agents verified"

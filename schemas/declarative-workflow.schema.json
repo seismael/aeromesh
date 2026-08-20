@@ -1,21 +1,32 @@
 {
-  "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "title": "AeroMesh Declarative Mesh Workflow (DWM v1.0) Schema",
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "urn:aeromesh:schemas:declarative-workflow:0.1.0",
+  "title": "AeroMesh Declarative Workflow Manifest (DWM)",
+  "description": "DWM v0.1: a signed DAG of already-verified agents, compiled into a LangGraph StateGraph.",
   "type": "object",
   "required": ["workflow_version", "identity", "steps"],
+  "additionalProperties": false,
   "properties": {
     "workflow_version": {
       "type": "string",
-      "enum": ["1.0.0"]
+      "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$",
+      "description": "Semantic version of the DWM standard (currently '0.1.0')."
     },
     "identity": {
       "type": "object",
-      "required": ["id", "name"],
+      "required": ["id", "name", "version"],
+      "additionalProperties": false,
       "properties": {
-        "id": { "type": "string", "pattern": "^[a-z0-9-]+$" },
-        "name": { "type": "string" },
-        "description": { "type": "string" },
-        "schedule": { "type": "string" }
+        "id": {
+          "type": "string",
+          "pattern": "^[a-z0-9-_]+$",
+          "description": "Unique URL-safe workflow id."
+        },
+        "name": { "type": "string", "maxLength": 100 },
+        "version": { "type": "string", "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$" },
+        "author": { "type": "string" },
+        "license": { "type": "string" },
+        "description": { "type": "string" }
       }
     },
     "steps": {
@@ -23,18 +34,19 @@
       "minItems": 1,
       "items": {
         "type": "object",
-        "required": ["id", "intent"],
+        "required": ["id", "agent_id", "intent"],
+        "additionalProperties": false,
         "properties": {
-          "id": { "type": "string" },
-          "agent_id": { "type": "string" },
-          "manifest": { "type": "string" },
-          "intent": { "type": "string" },
-          "depends_on": {
-            "type": "array",
-            "items": { "type": "string" }
-          }
+          "id": { "type": "string", "pattern": "^[a-z0-9-_]+$" },
+          "agent_id": { "type": "string", "description": "Reference to a verified DAM agent." },
+          "intent": { "type": "string", "description": "Task for this step; {step_id} placeholders inject upstream results." },
+          "depends_on": { "type": "array", "items": { "type": "string" } }
         }
       }
+    },
+    "output": {
+      "type": "string",
+      "description": "Optional step id whose result is the workflow's final answer."
     }
   }
 }

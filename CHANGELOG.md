@@ -6,6 +6,19 @@ All notable changes to AeroMesh are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+- **Workflows (DWM v0.1)** — a signed, shareable DAG of already-verified agents,
+  compiled into a LangGraph `StateGraph` of Deep Agents. `amx workflow`
+  (`init`/`sign`/`verify`/`install`/`run`/`share`/`revoke`) mirrors the agent
+  commands; `install` enforces recursive trust (the workflow's signature **and**
+  every referenced agent). `amx workflow run "<goal>"` synthesizes a workflow via
+  a live LLM grounded on the agent catalog.
+- **Real BM25 search** (`amx search`) replacing the placeholder scoring; no-match
+  queries return empty.
+- **Live-model CI** (`packages/aero/tests_live/` + a secret-gated GitHub Actions
+  job) running real DeepSeek calls.
+- **Registry index** (`amx index` → `registry/index.json`).
+
 ### Fixed
 - `amx init` now scaffolds `manifest_version: "0.1.0"` (was the non-existent
   `"3.0.0"`); the schema description, registry manifests, and test fixtures were

@@ -48,6 +48,10 @@ def get_aeromesh_agents_dir() -> Path:
     return get_aeromesh_home() / "agents"
 
 
+def get_aeromesh_workflows_dir() -> Path:
+    return get_aeromesh_home() / "workflows"
+
+
 def get_aeromesh_vfs_dir() -> Path:
     return get_aeromesh_home() / "vfs"
 
@@ -64,6 +68,11 @@ def get_aeromesh_workspace_registry_dir() -> Path:
         if reg_dir.exists() and reg_dir.is_dir():
             return reg_dir
     return Path(__file__).resolve().parents[4] / "registry" / "agents"
+
+
+def get_aeromesh_workspace_workflows_dir() -> Path:
+    """Returns absolute path to workspace registry/workflows directory."""
+    return get_aeromesh_workspace_registry_dir().parent / "workflows"
 
 
 def get_aeromesh_workspace_trusted_dir() -> Path:
@@ -98,5 +107,31 @@ def resolve_agent_manifest_path(target_str: str) -> Optional[Path]:
     registry_path = get_aeromesh_workspace_registry_dir() / target_name
     if registry_path.exists():
         return registry_path
+
+    return None
+
+
+def resolve_workflow_manifest_path(target_str: str) -> Optional[Path]:
+    """Resolve a workflow target string to a manifest Path:
+    1. Direct absolute/relative file path
+    2. User AppData store (~/.aeromesh/workflows/<target>.json)
+    3. Workspace registry (registry/workflows/<target>.json)
+    """
+    if not target_str:
+        return None
+
+    path = Path(target_str)
+    if path.exists() and path.is_file():
+        return path
+
+    target_name = target_str if target_str.endswith(".json") else f"{target_str}.json"
+
+    local_store_path = get_aeromesh_workflows_dir() / target_name
+    if local_store_path.exists():
+        return local_store_path
+
+    workspace_path = get_aeromesh_workspace_workflows_dir() / target_name
+    if workspace_path.exists():
+        return workspace_path
 
     return None

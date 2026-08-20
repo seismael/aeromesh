@@ -1,60 +1,70 @@
-# Declarative Mesh Workflows (DWM v1.0) & Scheduled Execution Specification
+# Declarative Mesh Workflows (DWM v0.1)
 
-> **Status: removed.** The hand-rolled workflow engine and `amx workflow`/`amx pipeline` commands were removed in the v0.1 refactor. Orchestration is now delegated to Deep Agents (subagents/planning) and LangGraph. This document is retained for historical reference only.
+> **Status:** shipped. A workflow is a signed DAG of already-verified agents,
+> compiled into a LangGraph `StateGraph` of Deep Agents. (The earlier hand-rolled
+> workflow engine and `amx pipeline` were removed; this is the replacement.)
 
-**Document Version:** 1.0.0 (Authoritative Final Release)  
-**Specification:** AeroMesh Declarative Mesh Workflows (DWM v1.0)  
-**Schema:** [`schemas/declarative-workflow.schema.json`](file:///c:/dev/projects/aeromesh/schemas/declarative-workflow.schema.json)  
+## 1. What a workflow is
 
----
-
-## 1. Executive Summary: Pipelines vs. Declarative Mesh Workflows
-
-AeroMesh distinguishes between single-line linear execution chains and reusable, scheduled mesh workflows:
-
-- **Pipeline (`amx pipeline`)**: Ephemeral, linear sequential chain (`Agent A -> Agent B -> Agent C`) passed directly on the command line.
-- **Declarative Mesh Workflow (`amx workflow`)**: Reusable DAG specification saved as a `workflow.json` manifest. Encapsulates step topology, dependency bindings, intent templates, and crontab scheduling (`0 8 * * 1-5`).
-
----
-
-## 2. Declarative Workflow Manifest Schema (`workflow.json`)
+A DWM manifest declares an ordered/parallel composition of existing agents:
 
 ```json
 {
-  "workflow_version": "1.0.0",
-  "identity": {
-    "id": "daily-executive-email-summary",
-    "name": "Daily Executive Email Summary & Action Items",
-    "description": "Fetches emails, analyzes database metrics, and audits repository security.",
-    "schedule": "0 8 * * 1-5"
-  },
+  "workflow_version": "0.1.0",
+  "identity": { "id": "audit-then-tune", "name": "Audit → Tune", "version": "1.0.0" },
   "steps": [
-    {
-      "id": "step-1-tune-queries",
-      "agent_id": "postgres-performance-tuner",
-      "intent": "Analyze slow SQL query SELECT * FROM users"
-    },
-    {
-      "id": "step-2-audit-secrets",
-      "agent_id": "enterprise-security-auditor",
-      "intent": "Audit repository secrets",
-      "depends_on": ["step-1-tune-queries"]
-    }
-  ]
+    { "id": "audit", "agent_id": "enterprise-security-auditor", "intent": "Audit this repo for secrets" },
+    { "id": "tune", "agent_id": "postgres-performance-tuner", "intent": "Tune the flagged query: {audit}", "depends_on": ["audit"] }
+  ],
+  "output": "tune"
 }
 ```
 
----
+- `steps[].agent_id` references a **verified DAM agent** (not inline code).
+- `steps[].depends_on` defines DAG edges; steps with no shared dependency run **in parallel**.
+- `steps[].intent` may use `{step_id}` placeholders to inject an upstream step's result.
+- `output` names the step whose result is the workflow's final answer.
 
-## 3. CLI Subcommands
+## 2. Trust model (recursive)
 
-### 3.1 Execute Workflow (`amx workflow run`)
-```bash
-amx workflow run daily_summary_workflow.json --diagnostics --non-interactive
+A workflow is runnable only when **all three** hold:
+
+1. The **workflow's own Ed25519 signature** verifies against a trusted key.
+2. **Every referenced agent** resolves to a signed, trusted, non-revoked manifest.
+3. Revocation of the workflow's key **or** any referenced agent's key blocks future runs.
+
+`amx workflow install` enforces 1 and 2 (unless `--insecure`). `sign`/`verify`/
+`revoke` mirror the agent commands exactly — one author identity signs both agents
+and workflows.
+
+## 3. Execution
+
+The DAG compiles into a LangGraph `StateGraph` (no hand-rolled engine):
+
+- each step → a node that builds a Deep Agent from the referenced DAM manifest
+  (reusing `manifest_to_deepagent_kwargs` + the persistent SQLite checkpointer)
+  and runs its templated intent;
+- `depends_on` → graph edges; independent steps fan out in one superstep;
+- a per-step output accumulator (LangGraph reducer) carries results downstream.
+
+## 4. CLI
+
+```
+amx workflow init <id>
+amx workflow sign <wf.json>
+amx workflow verify <wf.json>
+amx workflow install <wf.json>
+amx workflow run <wf.json> "<intent>"
+amx workflow share <wf.json>
+amx workflow revoke <id>
 ```
 
-### 3.2 Schedule Recurring Workflow (`amx workflow schedule`)
-Registers the workflow's `schedule` field into `~/.aeromesh/schedules.json` for recurring background execution:
-```bash
-amx workflow schedule daily_summary_workflow.json
-```
+`amx workflow run "<natural-language goal>"` (no resolvable file) asks a live LLM
+to **synthesize** a DWM manifest grounded on the available agent catalog, then
+executes it — the workflow equivalent of `amx run "<goal>"`.
+
+## 5. Sharing
+
+`registry/workflows/<id>.json` + `.sig` sidecar, and `registry/trusted/<id>.pub`
+— the same publish/verify/install flow as agents. `amx workflow share` emits the
+same signed payload shape as `amx share`.

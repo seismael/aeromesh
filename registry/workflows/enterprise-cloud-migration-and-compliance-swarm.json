@@ -1,10 +1,10 @@
 {
-  "workflow_version": "1.0.0",
+  "workflow_version": "0.1.0",
   "identity": {
     "id": "enterprise-cloud-migration-and-compliance-swarm",
     "name": "Enterprise Multi-Cloud System Migration & Full Security Compliance Swarm",
-    "description": "Orchestrates a 5-agent swarm performing database query tuning, security audit, FinTech balance reconciliation, AI vector indexing, and AWS EKS cloud deployment.",
-    "schedule": "0 2 * * 0"
+    "version": "1.0.0",
+    "description": "Orchestrates a 5-agent swarm performing database query tuning, security audit, FinTech balance reconciliation, AI vector indexing, and AWS EKS cloud deployment."
   },
   "steps": [
     {
@@ -35,5 +35,6 @@
       "intent": "Provision AWS EKS cluster, configure security groups, and deploy production Helm release",
       "depends_on": ["step-3-fintech-auditor", "step-4-ai-vector-architect"]
     }
-  ]
+  ],
+  "output": "step-5-multicloud-devops"
 }

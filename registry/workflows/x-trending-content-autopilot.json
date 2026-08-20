@@ -1,10 +1,10 @@
 {
-  "workflow_version": "1.0.0",
+  "workflow_version": "0.1.0",
   "identity": {
     "id": "x-trending-content-autopilot",
     "name": "Hourly X/Twitter Trending Content Research, Verification, Publishing & Analytics Autopilot",
-    "description": "Researches trending tech topics, verifies sources, drafts engaging posts, publishes to X API, and analyzes engagement feedback.",
-    "schedule": "0 * * * *"
+    "version": "1.0.0",
+    "description": "Researches trending tech topics, verifies sources, drafts engaging posts, publishes to X API, and analyzes engagement feedback."
   },
   "steps": [
     {
@@ -36,5 +36,6 @@
       "intent": "Query previous post interaction metrics (likes, retweets, replies, impressions) and update analytics feedback database.",
       "depends_on": ["step-4-x-publisher"]
     }
-  ]
+  ],
+  "output": "step-5-engagement-analyst"
 }

@@ -9,11 +9,16 @@ from typing import List
 from aero.domain.errors import AeroMeshDomainError, ErrorCode, ExitCode
 from aero.domain.paths import (
     get_aeromesh_agents_dir,
+    get_aeromesh_workflows_dir,
     get_aeromesh_workspace_registry_dir,
     resolve_agent_manifest_path,
+    resolve_workflow_manifest_path,
 )
+from aero.infrastructure.parser import WorkflowParser
 from aero.services.runner import AeroAgentRunnerService
 from aero.services.discovery import AeroDiscoveryEngine
+from aero.services.workflow_runner import WorkflowExecutionDriver
+from aero.services.workflow_synthesizer import WorkflowSynthesizer
 from aero.services import trust
 from aero.infrastructure import keystore
 from aero.infrastructure.guardian import GuardianSecurityScanner
@@ -99,6 +104,56 @@ def main(args: List[str] = None) -> int:
     v_set.add_argument("key", help="Credential key name (e.g. DB_CONNECT_STRING)")
     v_set.add_argument("value", help="Secret value to store")
 
+    # Command: amx workflow <subcommand>
+    wf_parser = subparsers.add_parser(
+        "workflow", help="Declarative Mesh Workflow (DWM) commands"
+    )
+    wf_subparsers = wf_parser.add_subparsers(
+        dest="workflow_command", help="Workflow subcommands"
+    )
+    wf_init = wf_subparsers.add_parser(
+        "init", help="Scaffold a new DWM workflow manifest"
+    )
+    wf_init.add_argument("workflow_id", help="ID/name of the new workflow")
+
+    wf_sign = wf_subparsers.add_parser(
+        "sign", help="Sign a workflow with an Ed25519 key (writes .sig sidecar)"
+    )
+    wf_sign.add_argument("workflow", help="Path to DWM workflow.json file")
+    wf_sign.add_argument("--key", default=None, help="Key name (default: 'default')")
+
+    wf_verify = wf_subparsers.add_parser(
+        "verify", help="Verify a workflow's Ed25519 signature"
+    )
+    wf_verify.add_argument("workflow", help="Path to DWM workflow.json file")
+
+    wf_install = wf_subparsers.add_parser(
+        "install", help="Install + verify a workflow and its referenced agents"
+    )
+    wf_install.add_argument("workflow", help="Path to DWM workflow.json file")
+    wf_install.add_argument(
+        "--insecure", action="store_true", help="Skip trust verification"
+    )
+
+    wf_run = wf_subparsers.add_parser(
+        "run", help="Run a workflow (or synthesize one from a natural-language goal)"
+    )
+    wf_run.add_argument("workflow", help="Path / workflow ID, or a goal to synthesize")
+    wf_run.add_argument("intent", nargs="?", default=None, help="User intent string")
+    wf_run.add_argument(
+        "--non-interactive", action="store_true", help="Fail if vault keys missing"
+    )
+
+    wf_share = wf_subparsers.add_parser(
+        "share", help="Generate a signed registry payload for a workflow"
+    )
+    wf_share.add_argument("workflow", help="Path to DWM workflow.json file")
+
+    wf_revoke = wf_subparsers.add_parser(
+        "revoke", help="Revoke a workflow's trusted signing key"
+    )
+    wf_revoke.add_argument("workflow_id", help="Workflow id whose key to revoke")
+
     # Command: amx validate <manifest_file>
     val_parser = subparsers.add_parser(
         "validate", help="Validate a DAM v0.1 agent.json file"
@@ -158,6 +213,9 @@ def main(args: List[str] = None) -> int:
     subparsers.add_parser("version", help="Show Aero Agent Engine version")
 
     parsed = parser.parse_args(args)
+
+    if parsed.command == "workflow":
+        return _handle_workflow(parsed)
 
     if parsed.command == "version":
         print("aero / amx version 1.0.0 (AeroMesh DAM v0.1)")
@@ -452,6 +510,149 @@ def main(args: List[str] = None) -> int:
             return e.exit_code.value
 
     parser.print_help()
+    return 0
+
+
+def _handle_workflow(parsed) -> int:
+    """Dispatch `amx workflow ...` subcommands."""
+    wf_parser = WorkflowParser()
+
+    if parsed.workflow_command == "init":
+        wf_id = parsed.workflow_id
+        template = {
+            "workflow_version": "0.1.0",
+            "identity": {
+                "id": wf_id,
+                "name": wf_id.replace("-", " ").title(),
+                "version": "1.0.0",
+                "description": "Describe this workflow",
+            },
+            "steps": [
+                {
+                    "id": "step-1",
+                    "agent_id": "example-agent",
+                    "intent": "Describe the task",
+                    "depends_on": [],
+                }
+            ],
+            "output": "step-1",
+        }
+        file_name = f"{wf_id}.workflow.json"
+        with open(file_name, "w", encoding="utf-8") as f:
+            json.dump(template, f, indent=2)
+        print(f"✨ Scaffolded workflow manifest: {file_name}")
+        return 0
+
+    if parsed.workflow_command == "sign":
+        key_name = getattr(parsed, "key", None) or keystore.DEFAULT_KEY_NAME
+        try:
+            attestation = trust.sign_manifest_file(parsed.workflow, key_name)
+            print(f"✍️  Signed '{parsed.workflow}' (Ed25519):")
+            print(f"  SHA-256: {attestation['sha256']}")
+            print(f"  Sidecar: {parsed.workflow}.sig")
+            return 0
+        except Exception as e:
+            AeroTerminalUI.render_error(str(e))
+            return 10
+
+    if parsed.workflow_command == "verify":
+        try:
+            ok, reason = trust.verify_manifest_file(parsed.workflow)
+            if ok:
+                print(f"✅ Workflow '{parsed.workflow}' signature valid ({reason}).")
+                return 0
+            print(f"❌ Workflow '{parsed.workflow}' NOT verified: {reason}.")
+            return 1
+        except Exception as e:
+            AeroTerminalUI.render_error(str(e))
+            return 10
+
+    if parsed.workflow_command == "install":
+        try:
+            workflow = wf_parser.parse_file(parsed.workflow)
+            if not parsed.insecure:
+                ok, reason = trust.verify_manifest_trusted_file(
+                    parsed.workflow, workflow.identity.id
+                )
+                if not ok:
+                    raise AeroMeshDomainError(
+                        f"Refusing to install untrusted workflow "
+                        f"'{workflow.identity.id}': {reason}. Use --insecure to override.",
+                        ErrorCode.AMX_ERR_SCHEMA_VIOLATION,
+                        ExitCode.SCHEMA_VIOLATION,
+                    )
+                ok, reason = trust.verify_workflow_references(workflow)
+                if not ok:
+                    raise AeroMeshDomainError(
+                        f"Refusing to install workflow with unverified agents: "
+                        f"{reason}. Use --insecure to override.",
+                        ErrorCode.AMX_ERR_SCHEMA_VIOLATION,
+                        ExitCode.SCHEMA_VIOLATION,
+                    )
+            wf_dir = get_aeromesh_workflows_dir()
+            wf_dir.mkdir(parents=True, exist_ok=True)
+            target = wf_dir / f"{workflow.identity.id}.json"
+            with open(parsed.workflow, "r", encoding="utf-8") as f_in, open(
+                target, "w", encoding="utf-8"
+            ) as f_out:
+                f_out.write(f_in.read())
+            print(
+                f"📦 Installed workflow '{workflow.identity.id}' to local store: {target}"
+            )
+            return 0
+        except AeroMeshDomainError as e:
+            AeroTerminalUI.render_error(str(e))
+            return e.exit_code.value
+
+    if parsed.workflow_command == "run":
+        try:
+            resolved = resolve_workflow_manifest_path(parsed.workflow)
+            if resolved:
+                workflow = wf_parser.parse_file(str(resolved))
+            else:
+                workflow = WorkflowSynthesizer().synthesize(parsed.workflow)
+
+            driver = WorkflowExecutionDriver(
+                workflow, non_interactive=parsed.non_interactive
+            )
+            result = driver.execute(parsed.intent or parsed.workflow)
+            final = result.get("verified_result")
+            if isinstance(final, dict):
+                final = json.dumps(final, indent=2)
+            AeroTerminalUI.render_result(str(final))
+            return 0
+        except AeroMeshDomainError as e:
+            AeroTerminalUI.render_error(str(e))
+            return e.exit_code.value
+
+    if parsed.workflow_command == "share":
+        try:
+            workflow = wf_parser.parse_file(parsed.workflow)
+            with open(parsed.workflow, "rb") as f:
+                sha256_hash = hashlib.sha256(f.read()).hexdigest()
+            payload = {
+                "id": workflow.identity.id,
+                "version": workflow.identity.version,
+                "title": workflow.identity.name,
+                "steps": [s.id for s in workflow.steps],
+                "sha256": sha256_hash,
+                "pull_request_target": f"registry/workflows/{workflow.identity.id}.json",
+                "attestation": trust.load_attestation(parsed.workflow),
+            }
+            print(f"🚀 Workflow Share Payload for '{workflow.identity.id}':")
+            print(json.dumps(payload, indent=2))
+            return 0
+        except AeroMeshDomainError as e:
+            AeroTerminalUI.render_error(str(e))
+            return e.exit_code.value
+
+    if parsed.workflow_command == "revoke":
+        if trust.revoke_key(parsed.workflow_id):
+            print(f"🚫 Revoked trusted key for '{parsed.workflow_id}'.")
+            return 0
+        print(f"⚠️  No trusted key found for '{parsed.workflow_id}'.")
+        return 1
+
     return 0
 
 

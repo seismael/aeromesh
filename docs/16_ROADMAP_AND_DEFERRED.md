@@ -56,8 +56,6 @@
   TS/Go SDKs that wrap the `amx` CLI (the runtime is Python).
 
 ### 6. Workflow engine (multi-agent orchestration as signed artifacts)
-- **Today:** orchestration is delegated to Deep Agents subagents/planning.
-- **Status:** in design (see `docs/10` for the historical spec; the new
-  LangGraph-based, signed-workflow design is being written).
-- **How later:** a declarative workflow manifest (DWM) compiled into a LangGraph
-  `StateGraph` of Deep Agents, signed/verified exactly like agents.
+- **Status:** shipped in v1.0.0 — `amx workflow` (DWM v0.1) compiles a signed DAG
+  of verified agents into a LangGraph `StateGraph` of Deep Agents; `install`
+  enforces recursive trust. See `docs/10`.

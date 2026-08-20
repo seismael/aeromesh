@@ -99,6 +99,7 @@ Full pitch → [`docs/14_ADOPTION_AND_VALUE_PROPOSITION.md`](docs/14_ADOPTION_AN
 - **Encrypted credentials** — OS-keyring-backed storage (`amx vault set`).
 - **Sandbox** — deny-by-default `allowed_domains` enforced via an HTTP(S) egress proxy on MCP tool subprocesses (**egress allowlisting, not full OS process isolation**).
 - **Output verification** — a manifest's `output_contract` (JSON Schema) is enforced via Deep Agents `RubricMiddleware`.
+- **Workflows (DWM v0.1)** — a signed DAG of verified agents compiled into a LangGraph `StateGraph` (`amx workflow ...`); `install` enforces recursive trust (the workflow **and** every referenced agent).
 
 > **Honesty note:** a live provider key is required for real model calls; a running MCP server is required for real tool execution. There are **no fakes or mocks in production code** — test doubles exist only in `tests/`.
 
@@ -148,6 +149,14 @@ amx run registry/agents/postgres-performance-tuner.json "Optimize slow join quer
 
 # Run an unbounded natural-language goal (JIT synthesis with a live model)
 amx run "Build an agent that monitors server uptime and alerts on downtime"
+
+# Compose a workflow of verified agents (sign, install, run)
+amx workflow sign my-pipeline.workflow.json
+amx workflow install my-pipeline.workflow.json
+amx workflow run my-pipeline.workflow.json "Run the audit, then tune the DB"
+
+# Or let the LLM author the workflow from a goal (JIT synthesis)
+amx workflow run "Build a workflow that audits my repo then tunes the flagged queries"
 ```
 
 ---

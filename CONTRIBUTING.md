@@ -39,10 +39,14 @@ You can contribute new pre-configured agent manifests to the [`registry/agents/`
   amx run registry/agents/your-agent.json "Sample intent description"
   ```
 
-### 2. Submitting New Declarative Agents (multi-agent orchestration)
-Multi-agent orchestration is delegated to **Deep Agents** (subagents + planning), declared via the DAM `sub_agent`/`skill` providers — not a separate workflow engine.
-- Add `sub_agent` and `skill` entries under `requirements.providers` in your `agent.json`.
-- The historical `registry/workflows/` files and `amx workflow` command were removed in the v1.0.0 refactor (see `docs/10`).
+### 2. Submitting Declarative Workflows (DWM v0.1)
+You can contribute reusable multi-agent DAGs to [`registry/workflows/`](registry/workflows):
+- Ensure your workflow validates against [`schemas/declarative-workflow.schema.json`](schemas/declarative-workflow.schema.json):
+  ```bash
+  amx workflow sign registry/workflows/your-workflow.json
+  amx workflow install registry/workflows/your-workflow.json
+  ```
+- Every `agent_id` a workflow references must itself be a signed, trusted agent in `registry/agents/` (see `docs/10`).
 
 ### 3. Core Engine & Package Enhancements
 Want to improve the engine performance, add new MCP drivers, or build monorepo packages under `packages/`?

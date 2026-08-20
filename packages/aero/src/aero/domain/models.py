@@ -74,3 +74,29 @@ class AgentManifest:
     providers: List[CapabilityProviderRequirement]
     swarm_topology: Optional[SwarmTopology] = None
     observability: Optional[ObservabilityProfile] = None
+
+
+@dataclass(frozen=True)
+class WorkflowIdentity:
+    id: str
+    name: str
+    version: str
+    author: Optional[str] = None
+    license: str = "MIT"
+    description: Optional[str] = None
+
+
+@dataclass(frozen=True)
+class WorkflowStep:
+    id: str
+    agent_id: str
+    intent: str
+    depends_on: List[str] = field(default_factory=list)
+
+
+@dataclass(frozen=True)
+class WorkflowManifest:
+    workflow_version: str
+    identity: WorkflowIdentity
+    steps: List[WorkflowStep]
+    output: Optional[str] = None
