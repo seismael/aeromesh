@@ -5,6 +5,7 @@ It is a declarative, signed, sandboxed standard that compiles into Deep Agents,
 which provide planning, subagents, skills, filesystem, and HITL out of the box.
 """
 
+import json
 import os
 from typing import Any, Dict, List, Optional
 
@@ -134,6 +135,17 @@ def build_mcp_tools(
     return asyncio.run(_build())
 
 
+def build_rubric(manifest: AgentManifest) -> Optional[str]:
+    """Turn a manifest's `output_contract` (JSON Schema) into a grading rubric."""
+    contract = getattr(manifest.capabilities, "output_contract", None)
+    if not contract:
+        return None
+    return (
+        "The final answer must be a single valid JSON object conforming to this "
+        "JSON Schema (respond with ONLY the JSON, no prose):\n" + json.dumps(contract)
+    )
+
+
 def manifest_to_deepagent_kwargs(
     manifest: AgentManifest,
     credentials: Optional[Dict[str, str]] = None,
@@ -198,25 +210,38 @@ class DeepAgentsExecutionDriver:
                 )
                 mcp_tools = []
 
+        self.rubric = build_rubric(manifest)
+        model_instance = model or resolve_model(self.credentials)
+
         from deepagents import create_deep_agent
 
-        self.agent = create_deep_agent(
-            **manifest_to_deepagent_kwargs(
-                manifest, self.credentials, tools=mcp_tools, model=model
-            )
+        kwargs = manifest_to_deepagent_kwargs(
+            manifest, self.credentials, tools=mcp_tools, model=model_instance
         )
+        if self.rubric:
+            from deepagents import RubricMiddleware
+
+            kwargs["middleware"] = [RubricMiddleware(model=model_instance)]
+
+        self.agent = create_deep_agent(**kwargs)
 
     def execute(self, user_intent: str) -> Dict[str, Any]:
         config = {
             "configurable": {"thread_id": f"session-{self.manifest.identity.id}"}
         }
-        result = self.agent.invoke(
-            {"messages": [{"role": "user", "content": user_intent}]}, config=config
-        )
+        state = {"messages": [{"role": "user", "content": user_intent}]}
+        if self.rubric:
+            state["rubric"] = self.rubric
+        result = self.agent.invoke(state, config=config)
         messages = result.get("messages", [])
         final_text = messages[-1].content if messages else ""
+        rubric_status = result.get("_rubric_status")
+        success = bool(final_text and final_text.strip())
+        if self.rubric:
+            success = rubric_status == "passed"
         return {
             "agent_id": self.manifest.identity.id,
             "verified_result": final_text,
-            "success_criteria_met": bool(final_text and final_text.strip()),
+            "success_criteria_met": success,
+            "rubric_status": rubric_status,
         }

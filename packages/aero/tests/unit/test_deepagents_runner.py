@@ -106,3 +106,32 @@ def test_mcp_connections_maps_stdio_provider():
 
 def test_required_tool_names():
     assert deepagents_runner._required_tool_names(_manifest()) == set()
+
+
+def test_build_rubric_none_without_contract():
+    assert deepagents_runner.build_rubric(_manifest()) is None
+
+
+def test_build_rubric_with_contract():
+    manifest = ManifestParser().validate_dict(
+        {
+            "manifest_version": "0.1.0",
+            "identity": {"id": "contract", "name": "C", "version": "0.1.0"},
+            "capabilities": {
+                "domain": "C",
+                "tags": ["c"],
+                "short_description": "d",
+                "evaluation_trigger": "e",
+                "output_contract": {
+                    "type": "object",
+                    "required": ["result"],
+                    "properties": {"result": {"type": "string"}},
+                },
+            },
+            "cognitive_runtime": {"persona": "p", "success_criteria": "s"},
+            "requirements": {"providers": []},
+        }
+    )
+    rubric = deepagents_runner.build_rubric(manifest)
+    assert "result" in rubric
+    assert "JSON Schema" in rubric

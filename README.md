@@ -43,6 +43,7 @@ Deep Agents gives you a *framework*. AeroMesh gives you a *format and a trust bo
 - **`sub_agent` + `skill` providers** — mapped to Deep Agents subagents/skills.
 - **Encrypted credentials** — OS-keyring-backed storage (`amx vault set`).
 - **Sandbox** — deny-by-default network policy + egress proxy enforcing `allowed_domains`.
+- **Output verification** — a manifest's `output_contract` (JSON Schema) is enforced via Deep Agents `RubricMiddleware`.
 
 > **Honesty note:** a live provider key is required for real model calls; a running MCP server is required for real tool execution. There are **no fakes or mocks in production code** — test doubles exist only in `tests/`.
 
@@ -123,7 +124,6 @@ Self-contained, offline-capable — no external CA or transparency log required 
 
 - Hosted registry (today git-as-registry).
 - Sigstore/cosign transparency-log attestation (today self-contained Ed25519).
-- `output_contract` mapped to Deep Agents `RubricMiddleware` (verification).
 
 ## License
 
