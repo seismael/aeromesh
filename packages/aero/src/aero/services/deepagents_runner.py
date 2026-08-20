@@ -116,7 +116,11 @@ def build_mcp_tools(
     credentials: Optional[Dict[str, str]] = None,
     proxy_env: Optional[Dict[str, str]] = None,
 ) -> List[Any]:
-    """Build real LangChain tools from the manifest's MCP providers."""
+    """Build real LangChain tools from the manifest's MCP providers.
+
+    A declared MCP tool is a hard requirement: connection failures and missing
+    required tools raise a clear error (they are never silently hidden).
+    """
     connections = mcp_connections(manifest, credentials, proxy_env)
     if not connections:
         return []
@@ -126,9 +130,25 @@ def build_mcp_tools(
 
     async def _build() -> List[Any]:
         client = MultiServerMCPClient(connections=connections)
-        tools = await client.get_tools()
+        try:
+            tools = await client.get_tools()
+        except Exception as e:  # noqa: BLE001 — surface as a clear domain error
+            raise AeroMeshDomainError(
+                f"Failed to connect to MCP server(s) [{', '.join(connections)}]: {e}",
+                ErrorCode.AMX_ERR_MCP_SPAWN_FAILED,
+                ExitCode.MCP_SPAWN_FAILED,
+            ) from e
+
         required = _required_tool_names(manifest)
         if required:
+            available = {t.name for t in tools}
+            missing = required - available
+            if missing:
+                raise AeroMeshDomainError(
+                    f"MCP server(s) did not provide required tools: {sorted(missing)}",
+                    ErrorCode.AMX_ERR_MCP_SPAWN_FAILED,
+                    ExitCode.MCP_SPAWN_FAILED,
+                )
             tools = [t for t in tools if t.name in required]
         return tools
 
@@ -197,18 +217,10 @@ class DeepAgentsExecutionDriver:
             proxy_env = self.proxy.proxy_env()
 
         if mcp_tools is None:
-            try:
-                mcp_tools = build_mcp_tools(
-                    manifest, self.credentials, proxy_env=proxy_env
-                )
-            except Exception as e:  # noqa: BLE001 — degrade gracefully, no crash
-                import sys
-
-                print(
-                    f"[warn] MCP tools unavailable; running without tools: {e}",
-                    file=sys.stderr,
-                )
-                mcp_tools = []
+            # A declared MCP tool is a hard requirement — failures propagate.
+            mcp_tools = build_mcp_tools(
+                manifest, self.credentials, proxy_env=proxy_env
+            )
 
         self.rubric = build_rubric(manifest)
         model_instance = model or resolve_model(self.credentials)

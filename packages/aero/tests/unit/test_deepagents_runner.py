@@ -135,3 +135,20 @@ def test_build_rubric_with_contract():
     rubric = deepagents_runner.build_rubric(manifest)
     assert "result" in rubric
     assert "JSON Schema" in rubric
+
+
+def test_driver_propagates_mcp_connection_failure(monkeypatch):
+    """MCP tool failures must surface, never be silently hidden."""
+    from aero.domain.errors import AeroMeshDomainError, ErrorCode
+
+    def raise_mcp(*args, **kwargs):
+        raise AeroMeshDomainError(
+            "Failed to connect to MCP server(s) [x]: boom",
+            ErrorCode.AMX_ERR_MCP_SPAWN_FAILED,
+            40,
+        )
+
+    monkeypatch.setattr(deepagents_runner, "build_mcp_tools", raise_mcp)
+    with pytest.raises(AeroMeshDomainError) as exc:
+        deepagents_runner.DeepAgentsExecutionDriver(_manifest(), credentials={})
+    assert exc.value.error_code == ErrorCode.AMX_ERR_MCP_SPAWN_FAILED
