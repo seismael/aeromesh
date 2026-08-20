@@ -7,3 +7,7 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..",
 # Tests must not spawn real MCP subprocesses (e.g. `npx`); tool execution is
 # exercised explicitly via injected mock drivers in test_tool_execution.py.
 os.environ.setdefault("AEROMESH_EXECUTE_TOOLS", "0")
+
+# Tests run offline: no real LLM API calls. The real provider path is tested
+# explicitly by passing offline=False and monkeypatching urllib in the provider tests.
+os.environ.setdefault("AEROMESH_OFFLINE", "1")

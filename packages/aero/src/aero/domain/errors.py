@@ -12,6 +12,7 @@ class ExitCode(IntEnum):
     MCP_SPAWN_FAILED = 40
     MCP_TIMEOUT = 41
     JIT_BUILD_FAILED = 50
+    PROVIDER_FAILED = 51
 
 
 class ErrorCode(str, Enum):
@@ -23,6 +24,7 @@ class ErrorCode(str, Enum):
     AMX_ERR_MCP_SPAWN_FAILED = "AMX_ERR_MCP_SPAWN_FAILED"
     AMX_ERR_MCP_TIMEOUT = "AMX_ERR_MCP_TIMEOUT"
     AMX_ERR_JIT_BUILD_FAILED = "AMX_ERR_JIT_BUILD_FAILED"
+    AMX_ERR_PROVIDER_FAILED = "AMX_ERR_PROVIDER_FAILED"
 
 
 class AeroMeshDomainError(Exception):

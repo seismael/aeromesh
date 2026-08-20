@@ -55,6 +55,8 @@ class JitSynthesizer:
     def _is_live(self) -> bool:
         if self.adapter is None:
             return False
+        if getattr(self.adapter, "offline", False):
+            return False
         key = (getattr(self.adapter, "api_key", "") or "").lower()
         if not key:
             return False

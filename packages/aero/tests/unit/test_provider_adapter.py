@@ -26,18 +26,21 @@ def test_provider_adapter_detect_anthropic_from_credentials():
     assert adapter.active_provider_id == "anthropic"
     assert adapter.active_model == "claude-3-5-sonnet-20241022"
 
-def test_provider_adapter_complete_prompt_fallback(monkeypatch):
-    monkeypatch.setenv("DEEPSEEK_API_KEY", "sk-mock-key")
-    adapter = CognitiveProviderAdapter(credentials={"DEEPSEEK_API_KEY": "sk-mock-key"})
-    
-    response = adapter.complete_prompt(
-        system_prompt="You are a PostgreSQL tuning DBA.",
-        user_prompt="Optimize query SELECT * FROM orders;"
-    )
-    
-    assert response is not None
-    assert len(response) > 0
-    assert "postgres" in response.lower() or "query" in response.lower() or "index" in response.lower() or "create" in response.lower()
+def test_provider_adapter_offline_mode_returns_marker():
+    adapter = CognitiveProviderAdapter(offline=True)
+    response = adapter.complete_prompt("sys", "user")
+    assert "[offline]" in response
+
+
+def test_provider_adapter_missing_key_raises(monkeypatch):
+    monkeypatch.delenv("DEEPSEEK_API_KEY", raising=False)
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    monkeypatch.delenv("GEMINI_API_KEY", raising=False)
+    adapter = CognitiveProviderAdapter(offline=False)
+    with pytest.raises(AeroMeshDomainError) as exc:
+        adapter.complete_prompt("sys", "user")
+    assert exc.value.error_code.value == "AMX_ERR_VAULT_KEY_MISSING"
 
 
 def test_provider_adapter_real_key_calls_api_by_default(monkeypatch):
@@ -56,8 +59,9 @@ def test_provider_adapter_real_key_calls_api_by_default(monkeypatch):
     monkeypatch.setattr(
         urllib.request, "urlopen", lambda req, timeout=None: FakeResp()
     )
-    # A key without mock/test/fake markers must hit the real API path.
-    adapter = CognitiveProviderAdapter(credentials={"DEEPSEEK_API_KEY": "sk-abc123"})
+    adapter = CognitiveProviderAdapter(
+        credentials={"DEEPSEEK_API_KEY": "sk-abc123"}, offline=False
+    )
     response = adapter.complete_prompt("system", "user")
     assert response == "REAL ANSWER"
 
@@ -65,7 +69,9 @@ def test_provider_adapter_real_key_calls_api_by_default(monkeypatch):
 def test_provider_adapter_egress_goes_through_sandbox(monkeypatch):
     from aero.domain.errors import AeroMeshDomainError, ErrorCode, ExitCode
 
-    adapter = CognitiveProviderAdapter(credentials={"DEEPSEEK_API_KEY": "sk-abc123"})
+    adapter = CognitiveProviderAdapter(
+        credentials={"DEEPSEEK_API_KEY": "sk-abc123"}, offline=False
+    )
     calls = []
 
     def fake_validate(url):
