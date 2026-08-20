@@ -1,7 +1,7 @@
 """LLM-driven JIT workflow synthesis (always real — no synthetic fallback)."""
 
 import json
-from typing import Any, Dict, Optional
+from typing import Any, Optional
 
 from aero.domain.errors import AeroMeshDomainError, ErrorCode, ExitCode
 from aero.domain.models import WorkflowManifest
