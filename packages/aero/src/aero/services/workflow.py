@@ -35,6 +35,19 @@ class AeroWorkflowEngine:
         self.executor = ThreadPoolExecutor(max_workers=max_workers)
         self._schema = None
 
+    def close(self) -> None:
+        """Shut down the worker pool, releasing threads."""
+        try:
+            self.executor.shutdown(wait=False, cancel_futures=False)
+        except Exception:
+            pass
+
+    def __del__(self):
+        try:
+            self.close()
+        except Exception:
+            pass
+
     def _load_schema(self) -> Dict[str, Any]:
         if self._schema is None:
             if not os.path.exists(SCHEMA_PATH):
@@ -147,6 +160,7 @@ class AeroWorkflowEngine:
             step["id"]: asyncio.Event() for step in steps
         }
         step_outputs: Dict[str, str] = {}
+        step_errors: Dict[str, Exception] = {}
         step_results: List[Dict[str, Any]] = []
 
         loop = asyncio.get_running_loop()
@@ -163,44 +177,54 @@ class AeroWorkflowEngine:
             step_id = step["id"]
             depends_on = step.get("depends_on", [])
 
-            # Wait asynchronously for specific dependency steps to complete
-            for dep_id in depends_on:
-                if dep_id in completed_events:
-                    await completed_events[dep_id].wait()
+            try:
+                # Wait asynchronously for dependency steps, propagating failures so
+                # dependents never hang on a dependency that already errored.
+                for dep_id in depends_on:
+                    if dep_id in completed_events:
+                        await completed_events[dep_id].wait()
+                    if dep_id in step_errors:
+                        raise step_errors[dep_id]
 
-            intent = step["intent"]
-            for dep_id in depends_on:
-                if dep_id in step_outputs:
-                    intent += f"\nContext from {dep_id}: {step_outputs[dep_id]}"
+                intent = step["intent"]
+                for dep_id in depends_on:
+                    if dep_id in step_outputs:
+                        intent += f"\nContext from {dep_id}: {step_outputs[dep_id]}"
 
-            manifest_path = self._resolve_manifest_path(step)
+                manifest_path = self._resolve_manifest_path(step)
 
-            # Execute agent task in worker thread pool with keyword arguments
-            step_res = await loop.run_in_executor(
-                self.executor,
-                _run_manifest_task,
-                manifest_path,
-                intent,
-            )
+                step_res = await loop.run_in_executor(
+                    self.executor,
+                    _run_manifest_task,
+                    manifest_path,
+                    intent,
+                )
 
-            verified_output = step_res["execution_result"].get("verified_result", "")
-            step_outputs[step_id] = verified_output
+                verified_output = step_res["execution_result"].get("verified_result", "")
+                step_outputs[step_id] = verified_output
 
-            step_results.append(
-                {
-                    "step_id": step_id,
-                    "manifest_path": manifest_path,
-                    "verified_output": verified_output,
-                    "diagnostics": step_res.get("diagnostics"),
-                }
-            )
+                step_results.append(
+                    {
+                        "step_id": step_id,
+                        "manifest_path": manifest_path,
+                        "verified_output": verified_output,
+                        "diagnostics": step_res.get("diagnostics"),
+                    }
+                )
+            except Exception as e:
+                step_errors[step_id] = e
+                raise
+            finally:
+                # Always release dependents, success or failure.
+                completed_events[step_id].set()
 
-            # Signal that this step is complete to dependent steps
-            completed_events[step_id].set()
-
-        # Dispatch all steps concurrently into event loop
+        # Dispatch all steps concurrently and wait for every task so none is
+        # left dangling; then surface the first failure (if any).
         tasks = [asyncio.create_task(run_step_async(step)) for step in steps]
-        await asyncio.gather(*tasks)
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+        for result in results:
+            if isinstance(result, Exception):
+                raise result
 
         return {
             "workflow_id": workflow["identity"]["id"],

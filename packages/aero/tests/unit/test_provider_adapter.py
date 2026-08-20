@@ -38,3 +38,25 @@ def test_provider_adapter_complete_prompt_fallback(monkeypatch):
     assert response is not None
     assert len(response) > 0
     assert "postgres" in response.lower() or "query" in response.lower() or "index" in response.lower() or "create" in response.lower()
+
+
+def test_provider_adapter_real_key_calls_api_by_default(monkeypatch):
+    import urllib.request
+
+    class FakeResp:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *a):
+            return False
+
+        def read(self):
+            return b'{"choices":[{"message":{"content":"REAL ANSWER"}}]}'
+
+    monkeypatch.setattr(
+        urllib.request, "urlopen", lambda req, timeout=None: FakeResp()
+    )
+    # A key without mock/test/fake markers must hit the real API path.
+    adapter = CognitiveProviderAdapter(credentials={"DEEPSEEK_API_KEY": "sk-abc123"})
+    response = adapter.complete_prompt("system", "user")
+    assert response == "REAL ANSWER"

@@ -5,7 +5,7 @@ from typing import Dict, Any, List
 from langgraph.graph import StateGraph, END
 from aero.domain.models import AgentManifest
 from aero.infrastructure.diagnostics import AeroDiagnosticTracer
-from aero.infrastructure.mcp import McpStdioDriver
+from aero.infrastructure.mcp import McpStdioDriver, McpSseDriver
 from aero.infrastructure.providers import CognitiveProviderAdapter
 from aero.infrastructure.sandbox import NetworkSandboxFirewall
 
@@ -36,13 +36,20 @@ class LangGraphExecutionDriver:
         self._init_mcp_drivers()
 
     def _init_mcp_drivers(self):
-        """Instantiates McpStdioDriver for all declared MCP requirements."""
+        """Instantiates MCP drivers for declared stdio and remote SSE requirements."""
         for p in self.manifest.providers:
             if p.type == "mcp" and p.command:
                 mcp_driver = McpStdioDriver(
                     command=p.command, args=p.args, env=self.credentials
                 )
                 self.mcp_drivers.append(mcp_driver)
+            elif p.type == "mcp" and p.uri and (
+                p.transport == "sse" or str(p.uri).startswith("http")
+            ):
+                sse_driver = McpSseDriver(
+                    uri=p.uri, allowed_domains=self.sandbox.allowed_domains
+                )
+                self.mcp_drivers.append(sse_driver)
 
     def build_graph(self) -> StateGraph:
         workflow = StateGraph(dict)

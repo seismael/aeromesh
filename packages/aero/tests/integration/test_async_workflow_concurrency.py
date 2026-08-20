@@ -68,3 +68,47 @@ async def test_async_workflow_concurrency_execution(workspace_scratch_dir, monke
     assert res["steps_executed"] == 3
     # Verify non-blocking async execution completed fast
     assert duration < 5.0
+
+
+def test_workflow_error_propagates_without_hanging(workspace_scratch_dir, monkeypatch):
+    """A failing step must propagate its error and release dependents (no deadlock)."""
+    monkeypatch.setenv("AEROMESH_HOME", workspace_scratch_dir)
+    monkeypatch.setenv("DB_CONNECT_STRING", "postgresql://admin:secret@localhost:5432/db")
+    # Deliberately leave GITHUB_TOKEN unset so the security step fails.
+    monkeypatch.delenv("GITHUB_TOKEN", raising=False)
+    monkeypatch.setenv("AWS_ACCESS_KEY_ID", "AKIAIOSFODNN7EXAMPLE")
+    monkeypatch.setenv("AWS_SECRET_ACCESS_KEY", "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY")
+    monkeypatch.setenv("KUBECONFIG_DATA", "apiVersion: v1...")
+
+    wf = {
+        "workflow_version": "1.0.0",
+        "identity": {"id": "failing-wf", "name": "Failing Workflow"},
+        "steps": [
+            {
+                "id": "step-sec",
+                "agent_id": "enterprise-security-auditor",
+                "intent": "Audit secrets",
+            },
+            {
+                "id": "step-devops",
+                "agent_id": "multicloud-devops-orchestrator",
+                "intent": "Deploy to EKS",
+                "depends_on": ["step-sec"],
+            },
+        ],
+    }
+    wf_file = os.path.join(workspace_scratch_dir, "failing_wf.json")
+    with open(wf_file, "w", encoding="utf-8") as f:
+        json.dump(wf, f)
+
+    engine = AeroWorkflowEngine()
+
+    async def _run():
+        return await asyncio.wait_for(
+            engine.execute_workflow_async(wf_file, non_interactive=True), timeout=10
+        )
+
+    from aero.domain.errors import AeroMeshDomainError
+
+    with pytest.raises(AeroMeshDomainError):
+        asyncio.run(_run())

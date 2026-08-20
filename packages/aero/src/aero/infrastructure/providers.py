@@ -100,7 +100,6 @@ class CognitiveProviderAdapter:
             or "mock" in key_lower
             or "test" in key_lower
             or "fake" in key_lower
-            or os.environ.get("AEROMESH_LIVE_API") != "1"
         )
         if is_mock:
             return self._generate_fallback_completion(system_prompt, user_prompt)

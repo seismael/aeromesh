@@ -6,6 +6,7 @@ import subprocess
 from dataclasses import dataclass, field
 from typing import Dict, Any, List, Optional
 from aero.domain.errors import AeroMeshDomainError, ErrorCode, ExitCode
+from aero.infrastructure.sandbox import NetworkSandboxFirewall
 
 
 @dataclass
@@ -206,15 +207,21 @@ class McpSseDriver:
     """Manages HTTP Server-Sent Events (SSE) stream transport daemons for remote cloud-hosted MCP servers."""
 
     def __init__(
-        self, uri: str, bearer_token: Optional[str] = None, timeout_sec: float = 30.0
+        self,
+        uri: str,
+        bearer_token: Optional[str] = None,
+        timeout_sec: float = 30.0,
+        allowed_domains: Optional[List[str]] = None,
     ):
         self.uri = uri
         self.bearer_token = bearer_token
         self.timeout_sec = timeout_sec
         self.is_connected = False
+        self.sandbox = NetworkSandboxFirewall(allowed_domains=allowed_domains)
 
     def connect(self) -> None:
-        """Establishes connection to remote SSE MCP endpoint."""
+        """Establishes connection to remote SSE MCP endpoint, enforcing allowlist."""
+        self.sandbox.validate_network_request(self.uri)
         self.is_connected = True
 
     def list_tools(self) -> List[McpToolDeclaration]:
