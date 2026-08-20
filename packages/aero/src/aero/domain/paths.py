@@ -71,6 +71,11 @@ def get_aeromesh_workspace_trusted_dir() -> Path:
     return get_aeromesh_workspace_registry_dir().parent / "trusted"
 
 
+def get_aeromesh_workspace_revoked_dir() -> Path:
+    """Returns the git-registry revocation store (registry/revoked)."""
+    return get_aeromesh_workspace_registry_dir().parent / "revoked"
+
+
 def resolve_agent_manifest_path(target_str: str) -> Optional[Path]:
     """Resolves target string to a manifest Path using OS-agnostic resolution priority:
     1. Direct absolute/relative file path

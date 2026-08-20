@@ -143,6 +143,12 @@ def main(args: List[str] = None) -> int:
     )
     verify_parser.add_argument("manifest", help="Path to DAM v0.1 agent.json file")
 
+    # Command: amx revoke <agent_id>
+    revoke_parser = subparsers.add_parser(
+        "revoke", help="Revoke an agent's trusted signing key"
+    )
+    revoke_parser.add_argument("agent_id", help="Agent id whose key to revoke")
+
     # Command: amx version
     subparsers.add_parser("version", help="Show Aero Agent Engine version")
 
@@ -183,6 +189,13 @@ def main(args: List[str] = None) -> int:
         except Exception as e:
             AeroTerminalUI.render_error(str(e))
             return 10
+
+    if parsed.command == "revoke":
+        if trust.revoke_key(parsed.agent_id):
+            print(f"🚫 Revoked trusted key for '{parsed.agent_id}'.")
+            return 0
+        print(f"⚠️  No trusted key found for '{parsed.agent_id}'.")
+        return 1
 
     if parsed.command == "search":
         discovery = AeroDiscoveryEngine()

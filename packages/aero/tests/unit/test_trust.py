@@ -81,3 +81,32 @@ def test_verify_manifest_trusted_succeeds_with_matching_key(monkeypatch, tmp_pat
     )
     ok, reason = trust.verify_manifest_trusted_file(str(manifest_path), "demo-agent")
     assert ok is True
+
+
+def test_revoke_key_blocks_verification(monkeypatch, tmp_path):
+    monkeypatch.setenv("AEROMESH_HOME", str(tmp_path))
+    manifest_path = tmp_path / "demo.json"
+    _write_manifest(manifest_path, agent_id="demo-agent")
+
+    trust.generate_and_store_keypair("default")
+    trust.sign_manifest_file(str(manifest_path))
+    pub_key = trust.load_attestation(str(manifest_path))["public_key"]
+
+    trusted_dir = tmp_path / "registry" / "trusted"
+    trusted_dir.mkdir(parents=True)
+    (trusted_dir / "demo-agent.pub").write_text(pub_key, encoding="utf-8")
+    revoked_dir = tmp_path / "registry" / "revoked"
+    monkeypatch.setattr(
+        trust.paths, "get_aeromesh_workspace_trusted_dir", lambda: trusted_dir
+    )
+    monkeypatch.setattr(
+        trust.paths, "get_aeromesh_workspace_revoked_dir", lambda: revoked_dir
+    )
+
+    ok, _ = trust.verify_manifest_trusted_file(str(manifest_path), "demo-agent")
+    assert ok is True
+
+    assert trust.revoke_key("demo-agent") is True
+    ok, reason = trust.verify_manifest_trusted_file(str(manifest_path), "demo-agent")
+    assert ok is False
+    assert "REVOKED" in reason

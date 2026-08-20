@@ -21,6 +21,12 @@ def sha256_hex(raw: bytes) -> str:
     return hashlib.sha256(raw).hexdigest()
 
 
+def public_key_fingerprint(public_key_pem: bytes) -> str:
+    """Stable SHA-256 fingerprint of a public key (for revocation lookup)."""
+    normalized = public_key_pem.decode().replace("\r\n", "\n").strip()
+    return sha256_hex(normalized.encode())
+
+
 def generate_keypair() -> Tuple[bytes, bytes]:
     """Generate an Ed25519 keypair, returning (private_pem, public_pem)."""
     priv = Ed25519PrivateKey.generate()

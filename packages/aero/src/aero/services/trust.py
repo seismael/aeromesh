@@ -7,6 +7,7 @@ from typing import Any, Dict, Optional, Tuple
 from aero.domain import paths
 from aero.infrastructure import keystore
 from aero.infrastructure.attestation import (
+    public_key_fingerprint,
     sign_manifest_dict,
     verify_manifest_dict,
     verify_manifest_trusted,
@@ -64,8 +65,32 @@ def trusted_public_key(agent_id: str) -> Optional[bytes]:
     return None
 
 
+def is_revoked(agent_id: str) -> bool:
+    """True if the agent's trusted key has been revoked."""
+    pub = trusted_public_key(agent_id)
+    if pub is None:
+        return False
+    fp = public_key_fingerprint(pub)
+    marker = paths.get_aeromesh_workspace_revoked_dir() / fp
+    return marker.exists()
+
+
+def revoke_key(agent_id: str) -> bool:
+    """Revoke the trusted signing key for an agent (records its fingerprint)."""
+    pub = trusted_public_key(agent_id)
+    if pub is None:
+        return False
+    fp = public_key_fingerprint(pub)
+    rev_dir = paths.get_aeromesh_workspace_revoked_dir()
+    rev_dir.mkdir(parents=True, exist_ok=True)
+    (rev_dir / fp).touch()
+    return True
+
+
 def verify_manifest_trusted_file(manifest_path: str, agent_id: str) -> Tuple[bool, str]:
-    """Verify a manifest's signature AND that it was signed by the trusted key for agent_id."""
+    """Verify a manifest's signature AND that it was signed by a trusted, non-revoked key."""
+    if is_revoked(agent_id):
+        return False, f"trusted key for '{agent_id}' has been REVOKED"
     pub = trusted_public_key(agent_id)
     if pub is None:
         return False, f"no trusted public key for '{agent_id}'"
