@@ -1,5 +1,7 @@
 # Ecosystem Integration Topology & Development Roadmap
 
+> **Status:** roadmap. Phase 1 items marked "COMPLETED" refer to v0.1 scope; "Sigstore" below is future work (v0.1 uses self-contained Ed25519).
+
 **Document Version:** 1.0.0 (Authoritative Final Release)  
 **Execution Strategy:** 5-Phase Incremental Delivery Plan  
 **Target Platform:** AeroMesh Enterprise Ecosystem  

@@ -1,5 +1,7 @@
 # Runtime MCP Driver & Dynamic JIT Builder Specification
 
+> **Status:** aspirational. Shipped v0.1 uses concrete `McpStdioDriver`/`McpSseDriver` classes (no `IMcpDriver` ABC) and an LLM-first `JitSynthesizer` (`packages/aero/src/aero/services/synthesizer.py`). "DAM v3.0" below means DAM v0.1.
+
 **Document Version:** 1.0.0 (Authoritative Final Release)  
 **Package Mapping:** `packages/mcp-driver` & `packages/jit-builder`  
 **SLA Targets:** MCP Tool Timeout 30s | JIT Builder Retry Limit 3  

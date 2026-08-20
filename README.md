@@ -1,189 +1,121 @@
-# AeroMesh: Open Autonomous AI Agent Engine & Declarative Swarm Ecosystem
+# AeroMesh — Declarative Agents, Synthesized on Demand, Signed & Sandboxed
 
-[![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
-[![DAM v3.0 Standard](https://img.shields.io/badge/Schema-DAM_v3.0-green.svg)](schemas/declarative-agent.schema.json)
-[![DWM v1.0 Standard](https://img.shields.io/badge/Schema-DWM_v1.0-green.svg)](schemas/declarative-workflow.schema.json)
-[![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](packages/aero)
-[![GitHub Repository](https://img.shields.io/badge/GitHub-seismael%2Faeromesh-black.svg?logo=github)](https://github.com/seismael/aeromesh)
-[![Tests](https://img.shields.io/badge/tests-100_passed-brightgreen.svg)](packages/aero/tests)
+AeroMesh is a **declarative agent standard + a thin runtime** that solves three real problems:
 
-**AeroMesh** is an open-source, enterprise-grade autonomous AI agent engine and declarative swarm ecosystem built on the **Declarative Agent Manifest (DAM v3.0)** and **Declarative Mesh Workflows (DWM v1.0)** standards. Powered by **Aero Engine (`amx`)**, it decouples agent capabilities from proprietary vendor lock-in, enabling deterministic pipelines, reusable mesh workflows, multi-agent consensus voting swarms, and OS-agnostic execution.
+1. **Don't rebuild agents every time** — describe an agent once as a portable JSON manifest (**DAM v0.1**), not as bespoke code or a fat prompt.
+2. **Let the LLM build agents on the fly** — for a goal no existing agent covers, AeroMesh synthesizes a schema-valid manifest from a live model (with a deterministic offline fallback).
+3. **Trust agents you didn't write** — manifests are **Ed25519-signed**, and `amx install` refuses unverified marketplace agents; the runtime enforces each agent's `allowed_domains` sandbox.
 
----
-
-## ✨ Key Features & Breakthrough Capabilities
-
-- **🏛️ Unified Master Orchestrator (`AeroMasterOrchestrator`)**: Auto-detects single agents, linear pipelines, DAG workflows, and raw natural language goals, dispatching to optimal engines with zero halts.
-- **🐝 Autonomous Hybrid Swarm Synthesis**: Parses complex multi-domain prompts (e.g. *"Audit repository secrets AND generate custom PDF summary"*), matches pre-built registry agents for known sub-goals, dynamically synthesizes JIT manifests for unhandled clauses, and executes unified swarms.
-- **🗳️ Multi-Agent Voting Consensus Swarms**: Computes majority voting agreement across multi-agent swarms before executing critical DDL queries or monetary transfers to eliminate LLM hallucinations.
-- **🤖 Background Workflow Daemon (`amx workflow daemon`)**: Runs background crontab daemons polling `~/.aeromesh/schedules.json` and executing due workflow jobs automatically.
-- **🔐 Zero-Trust Vault Cascade & Explicit Human Approval**: 5-layer credential resolution cascade (Override -> Process Env -> Vault Keyring -> User Home Config -> Desktop Fallback). In interactive human sessions, it requires explicit approval before consuming sensitive keys.
-- **📦 Sigstore Cryptographic Attestations (`amx export-bundle`)**: Generates SHA-256 digital signatures and cryptographically signed manifest bundles for secure software distribution.
-- **🛡️ Network Proxy Sandbox Firewall**: Enforces host domain allowlisting (`allowed_domains`), blocking unauthorized data exfiltration attempts.
-- **🔌 Dual Stdio & Remote SSE MCP Transport**: Spawns local subprocess stdio MCP servers AND connects to remote HTTP Server-Sent Events (`http+sse`) microservices seamlessly.
-- **🔍 Sub-5ms 2-Tier Discovery Search (`amx search`)**: Sub-5ms keyword and cognitive search index backed by local AppData caching (`~/.aeromesh/cache/index.json`).
-- **📜 Session Checkpoints & Time-Travel Replay (`amx run --replay <id>`)**: Saves execution checkpoints to `%LOCALAPPDATA%\AeroMesh\checkpoints\` for deterministic time-travel session debugging.
-- **💵 Token Cost & USD Budget Guardrail**: Enforces `manifest.observability.cost_limit_usd` budget thresholds, halting execution before budget overruns occur.
-- **🐍 Embeddable Multi-Language SDKs (`packages/sdk-python`)**: Lightweight embeddable Python SDK (`from aeromesh import AeroKernel`) to embed the kernel directly into custom software applications.
-- **🌐 OS-Agnostic AppData Standards**: Dynamic AppData path resolution across Windows (`%LOCALAPPDATA%\AeroMesh`), macOS (`~/Library/Application Support/AeroMesh`), Linux (`$XDG_DATA_HOME/aeromesh`), or `~/.aeromesh`.
+The engine (`amx`) validates, signs, verifies, sandboxes, and executes these manifests — individually, in pipelines, or as workflow DAGs.
 
 ---
 
-## 🏛️ Monorepo Repository Topology
+## What actually works today (v0.1)
+
+- **DAM v0.1 manifest schema** — `jsonschema`-validated, with machine-readable error codes (`AMX_ERR_*`).
+- **Ed25519 attestation** — `amx keygen` / `amx sign` / `amx verify`, with `<manifest>.sig` sidecars.
+- **Trusted install gating** — `amx install` verifies a marketplace agent's signature against `registry/trusted/<id>.pub` and refuses mismatches (`--insecure` opts out).
+- **LLM-driven JIT synthesis** — `amx run "<natural-language goal>"` decomposes the goal, reuses registry agents where they match, and synthesizes a schema-valid manifest for the rest when a live provider key is present (template fallback offline).
+- **Network sandbox** — a manifest's `allowed_domains` is enforced for remote (SSE) MCP tool endpoints.
+- **Workflows (DWM)** — DAG execution with cycle detection, dependency-aware async concurrency, and crontab scheduling.
+- **Multi-provider LLM binding** — DeepSeek, Anthropic, OpenAI, Gemini (real API calls when a real key is set; mock only for clearly-marked test keys).
+
+> **Honesty note:** `amx run` requires a live provider API key to actually call a model. Without one, execution falls back to a clearly-marked offline stub. The mock-first behavior of earlier versions is gone.
+
+---
+
+## Repository layout
 
 ```
 aeromesh/
-├── .agents/                    <-- Single Source of Governance Layer (AGENTS.md)
-├── docs/                       <-- Authoritative Master Specifications (01_PRD to 13_ENV)
-├── schemas/                    <-- JSON Schemas (DAM v3.0 & DWM v1.0)
-├── packages/                   <-- Enterprise Monorepo Packages
-│   ├── aero/                   <-- Standalone Aero Agent Kernel (`aero` / `amx`)
-│   ├── sdk-python/             <-- Embeddable Python Kernel SDK (`aeromesh-sdk`)
-│   └── vscode-extension/       <-- VS Code IDE Plugin & Schema Validator Manifest
-├── registry/                   <-- Git-as-a-Registry Agent Templates & Workflows
-│   ├── agents/                 <-- Pre-built Production Agent Manifests
-│   └── workflows/              <-- Declarative Mesh Workflows (DWM v1.0)
-├── CONTRIBUTING.md             <-- Open-Source Contribution & Development Guide
-├── LICENSE                     <-- Apache License 2.0
-└── README.md                   <-- Master Ecosystem Architecture & Quickstart Guide
+├── .agents/                Governance layer (AGENTS.md)
+├── docs/                   Design specs, PRD, architecture
+├── schemas/                DAM v0.1 & DWM v1.0 JSON Schemas
+├── packages/
+│   ├── aero/               The engine + CLI (amx)
+│   └── sdk-python/         Embeddable Python SDK (aeromesh-sdk)
+└── registry/
+    ├── agents/             Signed agent manifests
+    ├── workflows/          Declarative workflow DAGs
+    └── trusted/            Public keys for install verification
 ```
 
 ---
 
-## 💻 Installation & Testing
+## Install
 
-### Installation
 ```bash
-# Clone the repository
-git clone https://github.com/seismael/aeromesh.git
-cd aeromesh
-
-# Install aero package in editable mode
 pip install -e packages/aero
 ```
 
-### Running Test Suite
+## Test
+
 ```bash
-# Run all 100 unit, integration, and production resilience stress tests
 pytest packages/aero/tests
 ```
 
 ---
 
-## 🚀 Quickstart CLI Command Reference (`amx`)
+## Quickstart (`amx`)
 
-### 1. Scaffold a New Agent Manifest
 ```bash
+# Scaffold a new manifest
 amx init my-custom-agent
-```
 
-### 2. Validate DAM v3.0 Schema
-```bash
+# Validate against the DAM v0.1 schema
 amx validate registry/agents/postgres-performance-tuner.json
-```
 
-### 3. Guardian Security Scan & Sigstore Attestation
-```bash
-amx audit registry/agents/postgres-performance-tuner.json
-amx export-bundle registry/agents/postgres-performance-tuner.json
-```
+# Generate a signing key, sign, and verify
+amx keygen
+amx sign registry/agents/postgres-performance-tuner.json
+amx verify registry/agents/postgres-performance-tuner.json
 
-### 4. Pre-Flight Security Vault Audit
-```bash
-amx vault check registry/agents/postgres-performance-tuner.json
-```
+# Run a single agent (set the required credential first)
+$env:DB_CONNECT_STRING="postgresql://localhost:5432/db"
+amx run registry/agents/postgres-performance-tuner.json "Optimize slow join query"
 
-### 5. Search Registry & AppData Store (<5ms SLA)
-```bash
-amx search "Postgres SQL query optimization"
-```
+# Run an unbounded natural-language goal (JIT synthesis)
+amx run "Analyze slow Postgres queries AND generate a security audit report"
 
-### 6. Run Single Declarative Agent
-```bash
-$env:DB_CONNECT_STRING="postgresql://localhost:5432/production"
-amx run registry/agents/postgres-performance-tuner.json "Optimize slow join query" --diagnostics
-```
-
-### 7. Run Unbounded Natural Language Prompt (JIT Builder)
-```bash
-amx run "Analyze microservices latency spikes, audit Redis cache hit ratios, and patch Kubernetes deployment"
-```
-
-### 8. Run Multi-Agent Swarm Pipeline (DGAP)
-```bash
-amx pipeline registry/agents/postgres-performance-tuner.json registry/agents/enterprise-security-auditor.json --intent "Tune DB and audit repo secrets" --diagnostics
-```
-
-### 9. Declarative Mesh Workflows & Background Daemon (DWM v1.0)
-```bash
-# Run multi-agent workflow mesh
-amx workflow run registry/workflows/enterprise-cloud-migration-and-compliance-swarm.json --diagnostics
-
-# Schedule recurring crontab workflow & launch background daemon
-amx workflow schedule registry/workflows/x-trending-content-autopilot.json
-amx workflow list
-amx workflow daemon
-```
-
-### 10. Inspect History & Replay Session Checkpoints
-```bash
-# List past session checkpoints
-amx history
-
-# Replay saved session checkpoint deterministically
-amx run registry/agents/postgres-performance-tuner.json "Replay" --replay session-postgres-performance-tuner-1785591737
-```
-
-### 11. Install & Share Agents
-```bash
-# Install to local store (~/.aeromesh/agents/)
-amx install my-custom-agent.agent.json
-
-# Share agent to public registry (Generates SHA-256 PR payload)
-amx share registry/agents/postgres-performance-tuner.json
+# Run a pipeline / workflow
+amx pipeline registry/agents/postgres-performance-tuner.json registry/agents/enterprise-security-auditor.json --intent "Tune DB and audit secrets"
+amx workflow run registry/workflows/enterprise-cloud-migration-and-compliance-swarm.json
 ```
 
 ---
 
-## 🐍 Embeddable Python SDK Quickstart (`aeromesh-sdk`)
+## The trust model
 
-```python
-from aeromesh import AeroKernel
+1. Authors run `amx keygen` and `amx sign`, committing the manifest + `.sig` and their public key to `registry/trusted/`.
+2. Consumers run `amx install`; the engine verifies the manifest's Ed25519 signature **and** that it was produced by the trusted key for that agent id.
+3. At runtime, the agent's `allowed_domains` restrict its remote tool endpoints.
 
-kernel = AeroKernel()
-
-# Run a declarative agent manifest natively inside Python apps
-res = kernel.run_agent("registry/agents/postgres-performance-tuner.json", "Optimize slow query")
-print("Verified Result:", res["result"]["execution_result"]["verified_result"])
-```
+This is a self-contained, offline-capable trust model (no external CA or transparency log required for v0.1).
 
 ---
 
-## 📚 Master Architecture Specifications
+## Architecture (honest summary)
 
-All technical specifications are organized in the [`docs/`](docs) directory:
+`packages/aero/src/aero/` is a layered codebase:
 
-- [`01_PRD_PRODUCT_REQUIREMENTS_DOCUMENT.md`](docs/01_PRD_PRODUCT_REQUIREMENTS_DOCUMENT.md) - Vision & Product Requirements
-- [`02_SYSTEM_ARCHITECTURE.md`](docs/02_SYSTEM_ARCHITECTURE.md) - System Architecture & Master Orchestrator
-- [`03_DECLARATIVE_AGENT_SPECIFICATION.md`](docs/03_DECLARATIVE_AGENT_SPECIFICATION.md) - DAM v3.0 OpenAgent Specification
-- [`04_USER_INTERFACE_AND_CLI_PRESENTATION.md`](docs/04_USER_INTERFACE_AND_CLI_PRESENTATION.md) - Rich Terminal UI & Interactive Prompts
-- [`04_CLI_ENGINE_SPECIFICATION.md`](docs/04_CLI_ENGINE_SPECIFICATION.md) - CLI Engine Command Reference
-- [`05_DISCOVERY_AND_MARKETPLACE_REGISTRY.md`](docs/05_DISCOVERY_AND_MARKETPLACE_REGISTRY.md) - Marketplace Registry & 2-Tier Search Index
-- [`06_SECURITY_VAULT_AND_SANDBOXING.md`](docs/06_SECURITY_VAULT_AND_SANDBOXING.md) - Zero-Trust Vault & Sandbox Firewall
-- [`07_RUNTIME_MCP_AND_DYNAMIC_BUILDER.md`](docs/07_RUNTIME_MCP_AND_DYNAMIC_BUILDER.md) - Model Context Protocol & JIT Builder
-- [`08_HORIZONTAL_ECOSYSTEM_PROJECTS_AND_TOOLS.md`](docs/08_HORIZONTAL_ECOSYSTEM_PROJECTS_AND_TOOLS.md) - Horizontal Ecosystem Projects & Tools
-- [`09_ECOSYSTEM_INTEGRATION_AND_DEVELOPMENT_ROADMAP.md`](docs/09_ECOSYSTEM_INTEGRATION_AND_DEVELOPMENT_ROADMAP.md) - Strategic Roadmap & Milestones
-- [`10_DECLARATIVE_MESH_WORKFLOWS_AND_SCHEDULING.md`](docs/10_DECLARATIVE_MESH_WORKFLOWS_AND_SCHEDULING.md) - Mesh Workflows & Crontab Scheduling
-- [`13_WORKSPACE_AND_PACKAGE_ENVIRONMENT_STRUCTURE.md`](docs/13_WORKSPACE_AND_PACKAGE_ENVIRONMENT_STRUCTURE.md) - Monorepo Package Environment
+- `domain/` — dataclass models, error taxonomy, path resolution.
+- `infrastructure/` — schema parser, Ed25519 attestation, key store, provider adapter, MCP drivers, sandbox firewall, diagnostics, LangGraph driver.
+- `services/` — orchestrator, pipeline, workflow engine, discovery, JIT synthesizer, preflight, trust.
+- `presentation/` — CLI (`amx`) and Rich terminal UI.
+
+LangGraph is used as an **internal execution driver only** — it is not the product and not a headline feature.
 
 ---
 
-## 🤝 Contributing
+## Roadmap (not yet implemented)
 
-We welcome contributions of all kinds! Read our [**Contributing Guide (`CONTRIBUTING.md`)**](CONTRIBUTING.md) for full development setup and Pull Request guidelines.
+- HTTP marketplace registry (today it's git-as-registry).
+- Sigstore/cosign transparency-log attestation (today it's self-contained Ed25519).
+- OS-keyring-backed secret storage (today credentials are stored locally in plaintext under `~/.aeromesh/`).
+- Real per-tool process isolation / a true egress proxy (today the firewall gates remote MCP endpoints, not arbitrary subprocess network).
 
----
+See `docs/` for detailed specifications.
 
-## 📄 License
+## License
 
-Distributed under the **Apache License 2.0**. See [`LICENSE`](LICENSE) for details.
+Apache License 2.0 — see [`LICENSE`](LICENSE).

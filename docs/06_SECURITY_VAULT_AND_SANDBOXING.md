@@ -1,35 +1,35 @@
-# Zero-Trust Vault & Sandbox Security Architecture Specification
+# Security: Attestation, Vault, and Sandbox (v0.1)
 
-**Document Version:** 1.0.0 (Authoritative Final Release)  
-**Package Path:** [`packages/aero/src/aero/infrastructure/vault.py`](file:///c:/dev/projects/aeromesh/packages/aero/src/aero/infrastructure/vault.py)  
-**Security Paradigm:** Strict Zero-Trust & Explicit Human Permission Protocol  
+**Status:** v0.1 — matches the implemented code.
 
----
+## 1. Attestation (Ed25519)
 
-## 1. Executive Summary: Strict User Permission Protocol
+- `amx keygen` generates an Ed25519 keypair under `~/.aeromesh/keys/`.
+- `amx sign <manifest>` writes a `<manifest>.sig` sidecar: `{algorithm, sha256, public_key, signature}` over the canonical (sorted-key) JSON.
+- `amx verify <manifest>` cryptographically verifies the sidecar.
+- `amx install` verifies the signature **and** that it matches `registry/trusted/<agent_id>.pub`; mismatches are refused (`--insecure` opts out).
 
-In accordance with Zero-Trust principles, **no credential found in environment variables or configuration files is used without explicit human permission in interactive sessions**.
+This is honest, self-contained signing — **not** Sigstore (no transparency log / CA in v0.1).
 
-1. **Interactive Human Sessions (`non_interactive=False`)**:
-   - `ZeroTrustVaultResolver` displays existing keys found in the environment to the user (`AMXTerminalUI.prompt_credential_approval`).
-   - The user must explicitly approve using the discovered key, enter a replacement key, or reject the credential.
-   - If rejected, execution halts deterministically with `AMX_ERR_VAULT_KEY_MISSING` (Exit 20).
-2. **Automated Non-Interactive Sessions (`--non-interactive`)**:
-   - For background cron jobs or CI/CD pipelines, pre-approved credentials are resolved automatically from environment variables or vault keyring stores.
+## 2. Credential vault
 
----
+Credentials are resolved in this order: override env → process env → `~/.aeromesh/credentials.json` → `~/.aeromesh/config.json` → desktop `tokens.txt`.
 
-## 2. Explicit User Approval UI Layout
+- **Interactive sessions**: discovered keys require explicit user approval before use.
+- **Non-interactive sessions**: keys are used directly; a missing required credential raises `AMX_ERR_VAULT_KEY_MISSING`.
 
-```
-┌──────────────────────── 🔑 Explicit User Key Approval ────────────────────────┐
-│ Found Environment Credential: GITHUB_TOKEN (Value: ghp_****...90)            │
-│                                                                               │
-│ Options:                                                                      │
-│   [1] Approve using existing environment key                                  │
-│   [2] Enter a new secret key                                                  │
-│   [3] Reject and abort                                                        │
-└───────────────────────────────────────────────────────────────────────────────┘
-Select option [1-3] (Default 1): 1
-✅ Approved using existing key 'GITHUB_TOKEN'.
-```
+> **Honesty note:** `credentials.json` is stored in **plaintext** locally. OS-keyring encryption is a roadmap item, not shipped.
+
+## 3. Network sandbox
+
+`NetworkSandboxFirewall` enforces a manifest's `allowed_domains`:
+
+- Exact and `*.suffix` wildcard matching.
+- Enforced on remote (SSE) MCP endpoints (`McpSseDriver.connect`).
+- Violations raise `AMX_ERR_DOMAIN_BLOCKED` (exit 21).
+
+> **Honesty note:** v0.1 gates remote MCP endpoints, not arbitrary subprocess network. A full egress proxy is a roadmap item.
+
+## 4. Static scan (`amx audit`)
+
+`GuardianSecurityScanner` flags hardcoded secrets (`sk_live_`, `ghp_`, `AKIA`) and unrestricted `*` wildcards in `allowed_domains`, and reports a SHA-256 digest.

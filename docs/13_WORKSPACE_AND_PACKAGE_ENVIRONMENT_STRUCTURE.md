@@ -1,5 +1,7 @@
 # Workspace Package Environment & Layered Component Architecture Specification
 
+> **Status: aspirational — not the shipped layout.** The actual v0.1 layout is in `README.md`; there is no `core-kernel`, `guardian-scanner`, or 10-package monorepo.
+
 **Document Version:** 1.0.0 (Authoritative Final Release)  
 **Architectural Pattern:** Enterprise Monorepo & Clean Layered Architecture (`packages/<package_name>/src/`)  
 **Target Core Engine:** AeroMesh Cognitive Kernel (AMCK)  

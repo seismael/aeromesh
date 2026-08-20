@@ -1,5 +1,7 @@
 # Discovery Engine & Marketplace Registry Specification
 
+> **Status:** aspirational roadmap. The shipped v0.1 implements local/git-as-registry discovery + Ed25519 install verification (see `README.md`, `docs/06`). References to "DAM v3.0" and "Sigstore" are future work.
+
 **Document Version:** 1.0.0 (Authoritative Final Release)  
 **Pattern:** Decentralized Git-as-a-Registry & Local AppData Store (`packages/discovery-index`)  
 **Search Performance SLA:** Tier 1 Vector Filtering < 5ms  

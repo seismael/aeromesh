@@ -1,5 +1,7 @@
 # Aero Agent Engine (`aero` / `amx`) Specification
 
+> **Status:** superseded by `README.md` for the shipped v0.1 CLI. References to "DAM v3.0" and "Sigstore" below are stale — the engine is DAM v0.1 and uses Ed25519 attestation (`amx keygen`/`sign`/`verify`).
+
 **Document Version:** 1.0.0 (Authoritative Final Release)  
 **Package Name:** `packages/aero`  
 **Executable Command:** `amx`  

@@ -1,5 +1,7 @@
 # Horizontal Ecosystem Projects & Developer Tools Specification
 
+> **Status: aspirational roadmap — not implemented.** This document describes a 10-package ecosystem that does not exist. The shipped v0.1 is `packages/aero` (+ `packages/sdk-python` and a stub `packages/vscode-extension`). No Sigstore/Cosign, no `core-kernel`, no `studio-web`, no `desktop-app`, etc.
+
 **Document Version:** 1.0.0 (Authoritative Final Release)  
 **Package Directory:** `packages/`  
 **Ecosystem Scope:** 10 Modular Horizontal Sub-Projects  
