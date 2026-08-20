@@ -404,6 +404,7 @@ def main(args: List[str] = None) -> int:
                 content = f_in.read()
             with open(target_path, "w", encoding="utf-8") as f_out:
                 f_out.write(content)
+            trust.install_attestation(parsed.manifest, str(target_path))
 
             print(
                 f"📦 Installed agent '{manifest.identity.id}' to local store: {target_path}"
@@ -596,6 +597,7 @@ def _handle_workflow(parsed) -> int:
                 target, "w", encoding="utf-8"
             ) as f_out:
                 f_out.write(f_in.read())
+            trust.install_attestation(parsed.workflow, str(target))
             print(
                 f"📦 Installed workflow '{workflow.identity.id}' to local store: {target}"
             )

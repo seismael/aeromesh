@@ -47,6 +47,17 @@ def load_attestation(manifest_path: str) -> Optional[Dict[str, Any]]:
     return json.loads(sp.read_text(encoding="utf-8"))
 
 
+def install_attestation(source_path: str, target_path: str) -> None:
+    """Copy the ``.sig`` sidecar (if present) alongside an installed artifact.
+
+    An installed manifest must retain its attestation so later recursive trust
+    checks (e.g. a workflow referencing an installed agent) can still verify it.
+    """
+    src = _sidecar_path(source_path)
+    if src.exists():
+        _sidecar_path(target_path).write_bytes(src.read_bytes())
+
+
 def verify_manifest_file(manifest_path: str) -> Tuple[bool, str]:
     """Verify a manifest against its sidecar attestation (signature + sha256)."""
     attestation = load_attestation(manifest_path)
