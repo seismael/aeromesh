@@ -58,3 +58,20 @@ def test_runner_resume_unknown_session_raises():
     runner = AeroAgentRunnerService()
     with pytest.raises(AeroMeshDomainError):
         runner.run_manifest_file(None, "x", replay_session_id="does-not-exist")
+
+
+def test_runner_resume_from_direct_path_without_install(tmp_path):
+    """Resume works even when the agent is not installed/registered — the runner
+    records the exact manifest path at run time and reuses it on resume."""
+    fpath = tmp_path / "agent.json"
+    fpath.write_text(MANIFEST_TEXT, encoding="utf-8")
+    # NOTE: do not install the agent to the store.
+
+    runner = AeroAgentRunnerService()
+    res1 = runner.run_manifest_file(str(fpath), "go", non_interactive=True)
+    session_id = res1["session_id"]
+
+    res2 = runner.run_manifest_file(str(fpath), "again", replay_session_id=session_id)
+    assert res2.get("is_resumed") is True
+    assert res2["session_id"] == session_id
+    assert res2["manifest"].identity.id == "test-replay-agent"

@@ -2,6 +2,7 @@
 
 import time
 import uuid
+from pathlib import Path
 from typing import Any, Dict, Optional
 
 from aero.domain.errors import AeroMeshDomainError, ErrorCode, ExitCode
@@ -77,6 +78,7 @@ class AeroAgentRunnerService:
             agent_id=manifest.identity.id,
             thread_id=thread_id,
             intent=user_intent,
+            manifest_path=manifest_path,
         )
 
         return {
@@ -100,7 +102,17 @@ class AeroAgentRunnerService:
 
         agent_id = session["agent_id"]
         thread_id = session["thread_id"]
-        resolved = resolve_agent_manifest_path(agent_id)
+
+        # Prefer the exact manifest path recorded at run time, then fall back to
+        # resolving the agent id (installed/registry agents).
+        resolved = None
+        recorded_path = session.get("manifest_path")
+        if recorded_path:
+            p = Path(recorded_path)
+            if p.exists():
+                resolved = p
+        if resolved is None:
+            resolved = resolve_agent_manifest_path(agent_id)
         if not resolved:
             raise AeroMeshDomainError(
                 f"Cannot resume session '{session_id}': manifest for agent "
@@ -126,6 +138,7 @@ class AeroAgentRunnerService:
             agent_id=agent_id,
             thread_id=thread_id,
             intent=intent,
+            manifest_path=session.get("manifest_path"),
         )
 
         return {

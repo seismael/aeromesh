@@ -410,14 +410,21 @@ class DeepAgentsExecutionDriver:
             except Exception:  # noqa: BLE001 — best-effort cleanup
                 pass
 
-        async def _close_backends() -> None:
+        async def _shutdown() -> None:
+            # Cancel lingering background tasks (e.g. LangGraph store batching)
+            # before closing connections, so nothing is left pending on the loop.
+            tasks = [t for t in asyncio.all_tasks() if t is not asyncio.current_task()]
+            for t in tasks:
+                t.cancel()
+            if tasks:
+                await asyncio.gather(*tasks, return_exceptions=True)
             for backend in (self.checkpointer, self.store):
                 conn = getattr(backend, "conn", None)
                 if conn is not None:
                     await conn.close()
 
         try:
-            self._loop.run_until_complete(_close_backends())
+            self._loop.run_until_complete(_shutdown())
         except Exception:  # noqa: BLE001 — best-effort cleanup
             pass
         try:
