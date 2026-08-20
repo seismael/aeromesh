@@ -21,10 +21,6 @@ def test_pm_history_command():
     exit_code = main(["history"])
     assert exit_code == 0
 
-def test_pm_workflow_list_command():
-    exit_code = main(["workflow", "list"])
-    assert exit_code == 0
-
 def test_pm_vault_check_command():
     exit_code = main(["vault", "check", "registry/agents/postgres-performance-tuner.json"])
     # May fail if DB_CONNECT_STRING not in env, but exit code handled cleanly

@@ -1,182 +1,58 @@
-"""Aero Master Orchestrator Facade Service for AeroMesh."""
+"""AeroMesh master orchestrator: resolve a manifest or synthesize one, then run.
 
-import json
-from typing import Dict, Any, List, Union, Optional
+The heavy lifting (planning, subagents, skills, filesystem, HITL) is delegated to
+LangChain Deep Agents; this module only decides *what* to run and compiles it.
+"""
+
+from typing import Any, Dict, Optional, Union
+
 from aero.domain.errors import AeroMeshDomainError, ErrorCode, ExitCode
 from aero.domain.paths import resolve_agent_manifest_path
 from aero.services.runner import AeroAgentRunnerService
-from aero.services.pipeline import DeterministicPipelineOrchestrator
-from aero.services.workflow import AeroWorkflowEngine
-from aero.services.preflight import AeroInteractivePreflightEngine
-from aero.services.decomposition import AeroGoalDecompositionEngine
+from aero.services.synthesizer import JitSynthesizer
 
 
 class AeroMasterOrchestrator:
-    """Unified Facade Master Orchestrator for all Agent, Pipeline, Mesh Workflow, and JIT Natural Language executions."""
+    """Unified facade: run a DAM manifest, agent id, or a natural-language goal."""
 
-    def __init__(
-        self,
-        max_workers: int = 10,
-        preflight_engine: Optional[AeroInteractivePreflightEngine] = None,
-        decomposition_engine: Optional[AeroGoalDecompositionEngine] = None,
-    ):
+    def __init__(self):
         self.runner = AeroAgentRunnerService()
-        self.pipeline_orchestrator = DeterministicPipelineOrchestrator(
-            runner_service=self.runner
-        )
-        self.workflow_engine = AeroWorkflowEngine(
-            runner_service=self.runner, max_workers=max_workers
-        )
-        self.preflight = preflight_engine or AeroInteractivePreflightEngine()
-        self.decomposition = decomposition_engine or AeroGoalDecompositionEngine()
+        self.synthesizer = JitSynthesizer()
 
     def dispatch(
         self,
-        target: Union[str, List[str]],
-        intent: str = None,
+        target: Union[str, Any],
+        intent: Optional[str] = None,
         non_interactive: bool = False,
         enable_diagnostics: bool = False,
     ) -> Dict[str, Any]:
-        """Auto-detects execution mode and dispatches target request to the optimal engine."""
+        del enable_diagnostics  # Deep Agents has its own tracing (LangSmith)
 
-        # Pre-Flight Check: Ensure an active LLM provider key is configured
-        self.preflight.ensure_default_provider(non_interactive=non_interactive)
+        target_str = str(target)
 
-        # Mode 1: List of agent manifests passed -> Linear DGAP Pipeline
-        if isinstance(target, list):
-            if not intent:
+        # Mode 1: a resolvable manifest path or agent id.
+        resolved = resolve_agent_manifest_path(target_str)
+        if resolved:
+            if intent is None:
                 raise AeroMeshDomainError(
-                    "Intent string is required for pipeline execution.",
+                    "Intent string is required to run an agent.",
                     ErrorCode.AMX_ERR_SCHEMA_VIOLATION,
                     ExitCode.SCHEMA_VIOLATION,
                 )
-            resolved_targets = []
-            for manifest_target in target:
-                resolved = resolve_agent_manifest_path(str(manifest_target))
-                if not resolved:
-                    raise AeroMeshDomainError(
-                        f"Pipeline target manifest '{manifest_target}' not found.",
-                        ErrorCode.AMX_ERR_DISCOVERY_NO_MATCH,
-                        ExitCode.DISCOVERY_NO_MATCH,
-                    )
-                manifest = self.runner.parser.parse_file(str(resolved))
-                self.preflight.verify_agent_feasibility(manifest, intent)
-                resolved_targets.append(str(resolved))
-
-            return {
-                "mode": "PIPELINE",
-                "result": self.pipeline_orchestrator.execute_pipeline(
-                    resolved_targets,
-                    intent,
-                    non_interactive=non_interactive,
-                    enable_diagnostics=enable_diagnostics,
-                ),
-            }
-
-        target_str = str(target).strip()
-
-        # Mode 2: Resolve agent file or ID via Dual Registry Resolution
-        resolved_path = resolve_agent_manifest_path(target_str)
-        if not resolved_path:
-            if (
-                target_str.endswith(".json")
-                or target_str.endswith(".yaml")
-                or "/" in target_str
-                or "\\" in target_str
-            ):
-                raise AeroMeshDomainError(
-                    f"Target file or agent ID not found: '{target_str}'",
-                    ErrorCode.AMX_ERR_DISCOVERY_NO_MATCH,
-                    ExitCode.DISCOVERY_NO_MATCH,
-                )
-
-            # Mode 3: Natural Language Goal Decomposition & JIT Agent Manifest Synthesis
-            checklist = self.decomposition.decompose_goal(target_str)
-            if not non_interactive:
-                from aero.presentation.ui import AeroTerminalUI
-
-                AeroTerminalUI.render_requirements_checklist(checklist)
-
-            if len(checklist.matched_manifests) == 0:
-                raise AeroMeshDomainError(
-                    f"Goal decomposition produced no executable agents for: '{target_str}'",
-                    ErrorCode.AMX_ERR_DISCOVERY_NO_MATCH,
-                    ExitCode.DISCOVERY_NO_MATCH,
-                )
-
-            if len(checklist.matched_manifests) == 1:
-                # Single matched agent (registry or JIT-synthesized)
-                manifest = checklist.matched_manifests[0]
-                self.preflight.verify_agent_feasibility(manifest, target_str)
-                res = self.runner.run_manifest_file(
-                    None,
-                    target_str,
-                    non_interactive=non_interactive,
-                    enable_diagnostics=enable_diagnostics,
-                    manifest_object=manifest,
-                )
-                mode = (
-                    "JIT_AGENT"
-                    if manifest.identity.id.startswith("jit-")
-                    else "AGENT"
-                )
-                return {"mode": mode, "result": res, "checklist": checklist}
-            else:
-                # Composite swarm: registry agents + JIT agents in a pipeline
-                for manifest in checklist.matched_manifests:
-                    self.preflight.verify_agent_feasibility(manifest, target_str)
-                res = self.pipeline_orchestrator.execute_manifest_pipeline(
-                    checklist.matched_manifests,
-                    target_str,
-                    non_interactive=non_interactive,
-                    enable_diagnostics=enable_diagnostics,
-                )
-                return {"mode": "PIPELINE", "result": res, "checklist": checklist}
-
-        # Mode 4: Inspect JSON content to detect Workflow vs Single Agent
-        try:
-            with open(target_str, "r", encoding="utf-8") as f:
-                data = json.load(f)
-        except Exception as e:
-            raise AeroMeshDomainError(
-                f"Failed to parse JSON file '{target_str}': {str(e)}",
-                ErrorCode.AMX_ERR_SCHEMA_VIOLATION,
-                ExitCode.SCHEMA_VIOLATION,
+            result = self.runner.run_manifest_file(
+                str(resolved),
+                intent,
+                non_interactive=non_interactive,
             )
+            return {"mode": "AGENT", "result": result}
 
-        if "workflow_version" in data or ("identity" in data and "steps" in data):
-            # Mode 2A: Declarative Mesh Workflow (DWM v1.0)
-            return {
-                "mode": "WORKFLOW",
-                "result": self.workflow_engine.execute_workflow(
-                    target_str,
-                    non_interactive=non_interactive,
-                    enable_diagnostics=enable_diagnostics,
-                ),
-            }
-        else:
-            # Mode 2B: Single Declarative Agent Manifest
-            if intent is None and (
-                target_str.endswith(".json")
-                or target_str.endswith(".yaml")
-                or "/" in target_str
-                or "\\" in target_str
-            ):
-                raise AeroMeshDomainError(
-                    "Intent string is required for single agent execution.",
-                    ErrorCode.AMX_ERR_SCHEMA_VIOLATION,
-                    ExitCode.SCHEMA_VIOLATION,
-                )
-            intent = intent or target_str
-            manifest = self.runner.parser.parse_file(target_str)
-            self.preflight.verify_agent_feasibility(manifest, intent)
-
-            return {
-                "mode": "AGENT",
-                "result": self.runner.run_manifest_file(
-                    target_str,
-                    intent,
-                    non_interactive=non_interactive,
-                    enable_diagnostics=enable_diagnostics,
-                ),
-            }
+        # Mode 2: a natural-language goal -> synthesize a manifest, then run it.
+        manifest = self.synthesizer.synthesize(target_str)
+        result = self.runner.run_manifest_file(
+            None,
+            target_str,
+            non_interactive=non_interactive,
+            manifest_object=manifest,
+        )
+        mode = "JIT_AGENT" if manifest.identity.id.startswith("jit-") else "AGENT"
+        return {"mode": mode, "result": result}

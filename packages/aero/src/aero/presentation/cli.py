@@ -13,8 +13,6 @@ from aero.domain.paths import (
     resolve_agent_manifest_path,
 )
 from aero.services.runner import AeroAgentRunnerService
-from aero.services.pipeline import DeterministicPipelineOrchestrator
-from aero.services.workflow import AeroWorkflowEngine
 from aero.services.discovery import AeroDiscoveryEngine
 from aero.services import trust
 from aero.infrastructure import keystore
@@ -71,63 +69,6 @@ def main(args: List[str] = None) -> int:
     run_parser.add_argument(
         "--replay", help="Replay a previously checkpointed session ID"
     )
-
-    # Command: amx pipeline <manifest_1> <manifest_2> ... --intent "<intent>" [--diagnostics] [--non-interactive]
-    pipe_parser = subparsers.add_parser(
-        "pipeline", help="Run a Deterministic Guaranteed Agent Pipeline (DGAP)"
-    )
-    pipe_parser.add_argument(
-        "manifests", nargs="+", help="Ordered list of DAM v0.1 agent manifests"
-    )
-    pipe_parser.add_argument(
-        "--intent", required=True, help="Initial high-level goal intent string"
-    )
-    pipe_parser.add_argument(
-        "--non-interactive", action="store_true", help="Fail if vault keys missing"
-    )
-    pipe_parser.add_argument(
-        "--diagnostics",
-        action="store_true",
-        help="Emit real-time OTel diagnostic metrics",
-    )
-
-    # Command: amx workflow <subcommand> <workflow_file>
-    wf_parser = subparsers.add_parser(
-        "workflow", help="Declarative Mesh Workflow (DWM v1.0) Subcommands"
-    )
-    wf_subparsers = wf_parser.add_subparsers(
-        dest="wf_command", help="Workflow Subcommands"
-    )
-
-    wf_run_parser = wf_subparsers.add_parser(
-        "run", help="Run a DWM v1.0 workflow.json file"
-    )
-    wf_run_parser.add_argument("workflow", help="Path to workflow.json file")
-    wf_run_parser.add_argument(
-        "--non-interactive", action="store_true", help="Fail if vault keys missing"
-    )
-    wf_run_parser.add_argument(
-        "--diagnostics",
-        action="store_true",
-        help="Emit real-time OTel diagnostic metrics",
-    )
-
-    wf_sched_parser = wf_subparsers.add_parser(
-        "schedule", help="Schedule a DWM v1.0 workflow crontab job"
-    )
-    wf_sched_parser.add_argument("workflow", help="Path to workflow.json file")
-
-    wf_daemon_parser = wf_subparsers.add_parser(
-        "daemon",
-        help="Run background daemon polling schedules.json and triggering due jobs",
-    )
-    wf_daemon_parser.add_argument(
-        "--diagnostics",
-        action="store_true",
-        help="Emit real-time OTel diagnostic metrics",
-    )
-
-    wf_subparsers.add_parser("list", help="List registered scheduled workflows")
 
     # Command: amx init <agent_id>
     init_parser = subparsers.add_parser(
@@ -277,52 +218,6 @@ def main(args: List[str] = None) -> int:
 
     runner = AeroAgentRunnerService()
 
-    if parsed.command == "workflow":
-        wf_engine = AeroWorkflowEngine(runner_service=runner)
-        if parsed.wf_command == "run":
-            try:
-                res = wf_engine.execute_workflow(
-                    parsed.workflow,
-                    non_interactive=parsed.non_interactive,
-                    enable_diagnostics=parsed.diagnostics,
-                )
-                print(
-                    f"🔄 Executed Workflow '{res['workflow_name']}' ({res['steps_executed']} steps):"
-                )
-                for s in res["step_results"]:
-                    print(f"  Step '{s['step_id']}': {s['verified_output']}")
-                return 0
-            except AeroMeshDomainError as e:
-                AeroTerminalUI.render_error(str(e))
-                return e.exit_code.value
-        elif parsed.wf_command == "schedule":
-            try:
-                res = wf_engine.schedule_workflow(parsed.workflow)
-                print(
-                    f"⏰ Scheduled Workflow '{res['workflow_id']}' under crontab [{res['schedule']}]: {res['schedules_file']}"
-                )
-                return 0
-            except AeroMeshDomainError as e:
-                AeroTerminalUI.render_error(str(e))
-                return e.exit_code.value
-        elif parsed.wf_command == "daemon":
-            res = wf_engine.run_daemon_step(enable_diagnostics=parsed.diagnostics)
-            print(
-                f"🤖 Aero Workflow Daemon: Executed {res['executed_count']} due jobs (Status: {res['daemon_status']})."
-            )
-            return 0
-        elif parsed.wf_command == "list":
-            schedules_file = get_aeromesh_home() / "schedules.json"
-            if schedules_file.exists():
-                with open(schedules_file, "r", encoding="utf-8") as f:
-                    scheds = json.load(f)
-                print(f"📅 Registered Scheduled Workflows ({len(scheds)}):")
-                for w_id, info in scheds.items():
-                    print(f"  • {w_id} [{info['schedule']}]: {info['name']}")
-            else:
-                print("📅 No scheduled workflows found in ~/.aeromesh/schedules.json")
-            return 0
-
     if parsed.command == "init":
         file_name = f"{parsed.agent_id}.agent.json"
         template = {
@@ -459,27 +354,6 @@ def main(args: List[str] = None) -> int:
             AeroTerminalUI.render_error(str(e))
             return e.exit_code.value
 
-    if parsed.command == "pipeline":
-        try:
-            orchestrator = DeterministicPipelineOrchestrator(runner_service=runner)
-            res = orchestrator.execute_pipeline(
-                parsed.manifests,
-                parsed.intent,
-                non_interactive=parsed.non_interactive,
-                enable_diagnostics=parsed.diagnostics,
-            )
-            print(
-                f"🔗 Executed Deterministic Guaranteed Pipeline ({res['steps_executed']} steps):"
-            )
-            for step in res["pipeline_results"]:
-                print(
-                    f"  Step {step['step']} [{step['agent_id']}]: {step['verified_output']}"
-                )
-            return 0
-        except AeroMeshDomainError as e:
-            AeroTerminalUI.render_error(str(e))
-            return e.exit_code.value
-
     if parsed.command == "run":
         try:
             if parsed.replay:
@@ -541,27 +415,15 @@ def main(args: List[str] = None) -> int:
             )
 
             result = res.get("result", {})
-            mode = res.get("mode", "AGENT")
-
-            if mode in ("AGENT", "JIT_AGENT") and isinstance(result, dict):
-                if "manifest" in result:
-                    AeroTerminalUI.render_agent_banner(result["manifest"])
-                if result.get("diagnostics"):
-                    AeroTerminalUI.render_diagnostics(result["diagnostics"])
-                exec_res = result.get("execution_result", {})
-                verified = (
-                    exec_res.get("verified_result", "Completed successfully.")
-                    if isinstance(exec_res, dict)
-                    else str(exec_res)
-                )
-                AeroTerminalUI.render_result(verified)
-            else:
-                status = (
-                    result.get("pipeline_status")
-                    or result.get("status")
-                    or "completed"
-                )
-                AeroTerminalUI.render_result(f"{mode}: {status}")
+            if "manifest" in result:
+                AeroTerminalUI.render_agent_banner(result["manifest"])
+            exec_res = result.get("execution_result", {})
+            verified = (
+                exec_res.get("verified_result", "Completed successfully.")
+                if isinstance(exec_res, dict)
+                else str(exec_res)
+            )
+            AeroTerminalUI.render_result(verified)
             return 0
         except AeroMeshDomainError as e:
             AeroTerminalUI.render_error(str(e))
