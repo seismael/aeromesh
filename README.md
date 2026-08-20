@@ -1,12 +1,12 @@
 # AeroMesh — Declarative Agents, Synthesized on Demand, Signed & Sandboxed
 
-AeroMesh is a **declarative agent standard + a thin runtime** that solves three real problems:
+AeroMesh is a **declarative agent standard + a thin runtime built on LangChain Deep Agents** that solves three real problems:
 
 1. **Don't rebuild agents every time** — describe an agent once as a portable JSON manifest (**DAM v0.1**), not as bespoke code or a fat prompt.
 2. **Let the LLM build agents on the fly** — for a goal no existing agent covers, AeroMesh synthesizes a schema-valid manifest from a live model (with a deterministic offline fallback).
 3. **Trust agents you didn't write** — manifests are **Ed25519-signed**, and `amx install` refuses unverified marketplace agents; the runtime enforces each agent's `allowed_domains` sandbox.
 
-The engine (`amx`) validates, signs, verifies, sandboxes, and executes these manifests — individually, in pipelines, or as workflow DAGs.
+The DAM manifest **compiles into `create_deep_agent()`** — so agents get planning, subagents, skills, filesystem, and human-in-the-loop out of the box, while AeroMesh adds the declarative standard, signing/verification, JIT synthesis, and the sandbox on top.
 
 ---
 
@@ -77,10 +77,6 @@ amx run registry/agents/postgres-performance-tuner.json "Optimize slow join quer
 
 # Run an unbounded natural-language goal (JIT synthesis)
 amx run "Analyze slow Postgres queries AND generate a security audit report"
-
-# Run a pipeline / workflow
-amx pipeline registry/agents/postgres-performance-tuner.json registry/agents/enterprise-security-auditor.json --intent "Tune DB and audit secrets"
-amx workflow run registry/workflows/enterprise-cloud-migration-and-compliance-swarm.json
 ```
 
 ---
@@ -100,11 +96,11 @@ This is a self-contained, offline-capable trust model (no external CA or transpa
 `packages/aero/src/aero/` is a layered codebase:
 
 - `domain/` — dataclass models, error taxonomy, path resolution.
-- `infrastructure/` — schema parser, Ed25519 attestation, key store, provider adapter, MCP drivers, sandbox firewall, diagnostics, LangGraph driver.
-- `services/` — orchestrator, pipeline, workflow engine, discovery, JIT synthesizer, preflight, trust.
+- `infrastructure/` — schema parser, Ed25519 attestation, key store, sandbox firewall, egress proxy, credential store.
+- `services/` — Deep Agents runner (DAM → `create_deep_agent`), orchestrator, discovery, JIT synthesizer, trust.
 - `presentation/` — CLI (`amx`) and Rich terminal UI.
 
-LangGraph is used as an **internal execution driver only** — it is not the product and not a headline feature.
+Agent execution is delegated to **LangChain Deep Agents** (`create_deep_agent`); AeroMesh does not implement its own agent runtime.
 
 ---
 
