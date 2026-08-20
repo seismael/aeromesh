@@ -17,6 +17,36 @@ A DAM manifest **compiles into `create_deep_agent()`**, so you get Deep Agents' 
 
 ---
 
+## How it's used — three experiences
+
+**1. Author an agent** — sign & ship:
+
+```bash
+amx init my-code-reviewer        # scaffold a manifest (JSON, not code)
+# edit my-code-reviewer.agent.json
+amx keygen                       # create your signing identity (encrypted)
+amx sign my-code-reviewer.json   # sign it
+amx share my-code-reviewer.json  # signed payload for the registry
+```
+
+**2. Consume an agent** — verify & run:
+
+```bash
+amx install postgres-performance-tuner     # verifies signature + trusted signer
+amx run postgres-performance-tuner "Optimize my slow query"
+```
+
+**3. Zero-code** — let the LLM author it:
+
+```bash
+amx run "build me an agent that reviews code for security vulnerabilities"
+```
+
+The full end-to-end walkthrough (what happens under the hood at each step, and
+why) → [`docs/15_USER_EXPERIENCE_AND_WORKFLOWS.md`](docs/15_USER_EXPERIENCE_AND_WORKFLOWS.md).
+
+---
+
 ## Why AeroMesh — the value on top of Deep Agents
 
 Deep Agents gives you a *framework*. AeroMesh gives you a *format and a trust boundary*:
@@ -57,7 +87,7 @@ Full pitch → [`docs/14_ADOPTION_AND_VALUE_PROPOSITION.md`](docs/14_ADOPTION_AN
 
 ---
 
-## What works today (v0.1)
+## What works today
 
 - **DAM v0.1 schema** — `jsonschema`-validated, machine-readable error codes (`AMX_ERR_*`).
 - **Ed25519 attestation** — `amx keygen` / `sign` / `verify` (`.sig` sidecars).
@@ -128,7 +158,7 @@ amx run "Build an agent that monitors server uptime and alerts on downtime"
 2. Consumers `amx install`; the engine verifies the Ed25519 signature **and** the trusted signer.
 3. At runtime, the agent's `allowed_domains` restricts its MCP tools' **HTTP(S)** egress via the proxy (egress allowlisting — see `SECURITY.md` for the honest isolation boundary).
 
-Self-contained, offline-capable — no external CA or transparency log required for v0.1.
+Self-contained, offline-capable — no external CA or transparency log required.
 
 ---
 
