@@ -60,3 +60,49 @@ def test_manifest_to_deepagent_kwargs(monkeypatch):
     assert kwargs["model"] == "fake-model"
     assert kwargs["subagents"][0]["name"] == "dependency-vulnerability-scanner"
     assert kwargs["skills"] == ["python-testing"]
+
+
+def test_manifest_to_deepagent_kwargs_includes_tools(monkeypatch):
+    monkeypatch.setattr(deepagents_runner, "resolve_model", lambda creds=None: "fake-model")
+    kwargs = deepagents_runner.manifest_to_deepagent_kwargs(_manifest(), tools=["tool-a"])
+    assert kwargs["tools"] == ["tool-a"]
+
+
+def test_mcp_connections_maps_stdio_provider():
+    manifest = ManifestParser().validate_dict(
+        {
+            "manifest_version": "0.1.0",
+            "identity": {"id": "mcp-demo", "name": "M", "version": "0.1.0"},
+            "capabilities": {
+                "domain": "M",
+                "tags": ["m"],
+                "short_description": "d",
+                "evaluation_trigger": "e",
+            },
+            "cognitive_runtime": {"persona": "p", "success_criteria": "s"},
+            "requirements": {
+                "providers": [
+                    {
+                        "type": "mcp",
+                        "id": "postgres-mcp",
+                        "transport": "stdio",
+                        "command": "npx",
+                        "args": ["-y", "server"],
+                        "required_tools": ["execute_query"],
+                    }
+                ]
+            },
+        }
+    )
+    conns = deepagents_runner.mcp_connections(
+        manifest, credentials={"DB": "secret"}, proxy_env={"HTTP_PROXY": "http://p"}
+    )
+    assert conns["postgres-mcp"]["transport"] == "stdio"
+    assert conns["postgres-mcp"]["command"] == "npx"
+    assert conns["postgres-mcp"]["args"] == ["-y", "server"]
+    assert conns["postgres-mcp"]["env"]["DB"] == "secret"
+    assert conns["postgres-mcp"]["env"]["HTTP_PROXY"] == "http://p"
+
+
+def test_required_tool_names():
+    assert deepagents_runner._required_tool_names(_manifest()) == set()

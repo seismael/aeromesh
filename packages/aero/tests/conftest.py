@@ -33,7 +33,9 @@ class FakeChatModel(BaseChatModel):
         return self
 
 
-# Inject the fake model so tests never hit a real LLM provider.
+# Inject the fake model and skip real MCP tool building so tests never hit a
+# real LLM provider or spawn MCP subprocesses.
 import aero.services.deepagents_runner as _dgr
 
 _dgr.resolve_model = lambda credentials=None: FakeChatModel()
+_dgr.build_mcp_tools = lambda *args, **kwargs: []

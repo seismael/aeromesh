@@ -76,14 +76,75 @@ def extract_skills(manifest: AgentManifest) -> List[str]:
     return [p.id for p in manifest.providers if p.type == "skill"]
 
 
+def mcp_connections(
+    manifest: AgentManifest,
+    credentials: Optional[Dict[str, str]] = None,
+    proxy_env: Optional[Dict[str, str]] = None,
+) -> Dict[str, Dict[str, Any]]:
+    """Pure mapping: DAM `mcp` providers -> MCP connection dicts."""
+    connections: Dict[str, Dict[str, Any]] = {}
+    for p in manifest.providers:
+        if p.type != "mcp":
+            continue
+        if p.command:  # stdio subprocess
+            env = dict(os.environ)
+            env.update(credentials or {})
+            if proxy_env:
+                env.update(proxy_env)
+            connections[p.id] = {
+                "transport": "stdio",
+                "command": p.command,
+                "args": p.args or [],
+                "env": env,
+            }
+        elif p.uri and p.transport == "sse":
+            connections[p.id] = {"transport": "sse", "url": p.uri}
+    return connections
+
+
+def _required_tool_names(manifest: AgentManifest) -> set:
+    names = set()
+    for p in manifest.providers:
+        if p.type == "mcp" and p.required_tools:
+            names.update(p.required_tools)
+    return names
+
+
+def build_mcp_tools(
+    manifest: AgentManifest,
+    credentials: Optional[Dict[str, str]] = None,
+    proxy_env: Optional[Dict[str, str]] = None,
+) -> List[Any]:
+    """Build real LangChain tools from the manifest's MCP providers."""
+    connections = mcp_connections(manifest, credentials, proxy_env)
+    if not connections:
+        return []
+    import asyncio
+
+    from langchain_mcp_adapters.client import MultiServerMCPClient
+
+    async def _build() -> List[Any]:
+        client = MultiServerMCPClient(connections=connections)
+        tools = await client.get_tools()
+        required = _required_tool_names(manifest)
+        if required:
+            tools = [t for t in tools if t.name in required]
+        return tools
+
+    return asyncio.run(_build())
+
+
 def manifest_to_deepagent_kwargs(
-    manifest: AgentManifest, credentials: Optional[Dict[str, str]] = None
+    manifest: AgentManifest,
+    credentials: Optional[Dict[str, str]] = None,
+    tools: Optional[List[Any]] = None,
+    model: Any = None,
 ) -> Dict[str, Any]:
     """Compile a DAM manifest into `create_deep_agent(**kwargs)`."""
     kwargs: Dict[str, Any] = {
         "name": manifest.identity.name,
         "system_prompt": manifest.cognitive_runtime.persona,
-        "model": resolve_model(credentials),
+        "model": model or resolve_model(credentials),
     }
     subagents = extract_subagents(manifest)
     if subagents:
@@ -91,23 +152,49 @@ def manifest_to_deepagent_kwargs(
     skills = extract_skills(manifest)
     if skills:
         kwargs["skills"] = skills
+    if tools:
+        kwargs["tools"] = tools
     return kwargs
 
 
 class DeepAgentsExecutionDriver:
-    """Executes a DAM manifest by delegating to Deep Agents."""
+    """Executes a DAM manifest by delegating to Deep Agents (with real MCP tools)."""
 
     def __init__(
         self,
         manifest: AgentManifest,
         credentials: Optional[Dict[str, str]] = None,
+        mcp_tools: Optional[List[Any]] = None,
+        model: Any = None,
     ):
         self.manifest = manifest
         self.credentials = credentials or {}
+        self.proxy = None
+        proxy_env: Optional[Dict[str, str]] = None
+
+        has_stdio_mcp = any(p.type == "mcp" and p.command for p in manifest.providers)
+        if has_stdio_mcp and mcp_tools is None:
+            # Route MCP subprocess HTTP(S) through the allowlist egress proxy.
+            from aero.infrastructure.egress_proxy import LocalEgressProxy
+
+            allowed = [
+                d for p in manifest.providers for d in (p.allowed_domains or [])
+            ]
+            self.proxy = LocalEgressProxy(allowed_domains=allowed)
+            self.proxy.start()
+            proxy_env = self.proxy.proxy_env()
+
+        if mcp_tools is None:
+            mcp_tools = build_mcp_tools(
+                manifest, self.credentials, proxy_env=proxy_env
+            )
+
         from deepagents import create_deep_agent
 
         self.agent = create_deep_agent(
-            **manifest_to_deepagent_kwargs(manifest, self.credentials)
+            **manifest_to_deepagent_kwargs(
+                manifest, self.credentials, tools=mcp_tools, model=model
+            )
         )
 
     def execute(self, user_intent: str) -> Dict[str, Any]:
