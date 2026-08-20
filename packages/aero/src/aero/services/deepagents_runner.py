@@ -198,6 +198,8 @@ class DeepAgentsExecutionDriver:
         credentials: Optional[Dict[str, str]] = None,
         mcp_tools: Optional[List[Any]] = None,
         model: Any = None,
+        checkpointer: Any = None,
+        store: Any = None,
     ):
         self.manifest = manifest
         self.credentials = credentials or {}
@@ -227,6 +229,19 @@ class DeepAgentsExecutionDriver:
 
         from deepagents import create_deep_agent
 
+        # Persistence: wire a checkpointer (session resume / HITL) and a store
+        # (long-term memory) so Deep Agents' built-in capabilities are available.
+        if checkpointer is None:
+            from langgraph.checkpoint.memory import MemorySaver
+
+            checkpointer = MemorySaver()
+        if store is None:
+            from langgraph.store.memory import InMemoryStore
+
+            store = InMemoryStore()
+        self.checkpointer = checkpointer
+        self.store = store
+
         kwargs = manifest_to_deepagent_kwargs(
             manifest, self.credentials, tools=mcp_tools, model=model_instance
         )
@@ -235,12 +250,15 @@ class DeepAgentsExecutionDriver:
 
             kwargs["middleware"] = [RubricMiddleware(model=model_instance)]
 
-        self.agent = create_deep_agent(**kwargs)
+        self.agent = create_deep_agent(
+            **kwargs, checkpointer=self.checkpointer, store=self.store
+        )
 
-    def execute(self, user_intent: str) -> Dict[str, Any]:
-        config = {
-            "configurable": {"thread_id": f"session-{self.manifest.identity.id}"}
-        }
+    def execute(
+        self, user_intent: str, thread_id: Optional[str] = None
+    ) -> Dict[str, Any]:
+        thread_id = thread_id or f"session-{self.manifest.identity.id}"
+        config = {"configurable": {"thread_id": thread_id}}
         state = {"messages": [{"role": "user", "content": user_intent}]}
         if self.rubric:
             state["rubric"] = self.rubric
@@ -253,6 +271,7 @@ class DeepAgentsExecutionDriver:
             success = rubric_status == "passed"
         return {
             "agent_id": self.manifest.identity.id,
+            "thread_id": thread_id,
             "verified_result": final_text,
             "success_criteria_met": success,
             "rubric_status": rubric_status,
