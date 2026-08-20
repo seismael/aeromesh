@@ -8,31 +8,8 @@ which provide planning, subagents, skills, filesystem, and HITL out of the box.
 import os
 from typing import Any, Dict, List, Optional
 
-from langchain_core.language_models.chat_models import BaseChatModel
-from langchain_core.messages import AIMessage
-from langchain_core.outputs import ChatGeneration, ChatResult
-
 from aero.domain.models import AgentManifest
 from aero.domain.errors import AeroMeshDomainError, ErrorCode, ExitCode
-
-
-class OfflineChatModel(BaseChatModel):
-    """Deterministic offline chat model for tests (implements bind_tools as no-op)."""
-
-    response: str = "[offline] deterministic response"
-
-    @property
-    def _llm_type(self) -> str:
-        return "offline-chat-model"
-
-    def _generate(self, messages, stop=None, run_manager=None, **kwargs) -> ChatResult:
-        return ChatResult(
-            generations=[ChatGeneration(message=AIMessage(content=self.response))]
-        )
-
-    def bind_tools(self, tools, **kwargs):
-        return self
-
 
 # Provider -> langchain "provider:model" string (native SDKs).
 PROVIDER_MODEL_STRINGS = {
@@ -51,15 +28,12 @@ PROVIDER_ENV_VARS = {
 
 
 def resolve_model(credentials: Optional[Dict[str, str]] = None) -> Any:
-    """Resolve the first available provider into a LangChain chat model (native SDK).
+    """Resolve the first available provider into a real LangChain chat model.
 
-    In offline mode (AEROMESH_OFFLINE=1), returns LangChain's own fake chat model
-    for deterministic tests — no hand-rolled mocks.
+    Always real: raises if no provider key is configured. Test doubles are
+    injected from test code (never here).
     """
     credentials = credentials or {}
-    if os.environ.get("AEROMESH_OFFLINE") == "1":
-        return OfflineChatModel()
-
     last_error = None
     for provider, env_var in PROVIDER_ENV_VARS.items():
         key = credentials.get(env_var) or os.environ.get(env_var)

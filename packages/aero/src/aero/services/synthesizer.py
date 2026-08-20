@@ -1,4 +1,4 @@
-"""LLM-driven JIT agent manifest synthesis (LLM-first with template fallback)."""
+"""LLM-driven JIT agent manifest synthesis (LLM-first with offline template fallback)."""
 
 import json
 import os
@@ -61,13 +61,10 @@ class JitSynthesizer:
     def _is_live(self) -> bool:
         if self.model is not None:
             return True  # explicitly injected model → live
-        if os.environ.get("AEROMESH_OFFLINE") == "1":
-            return False
-        try:
-            self._get_model()
-            return True
-        except AeroMeshDomainError:
-            return False
+        from aero.services.deepagents_runner import PROVIDER_ENV_VARS
+
+        # Live only when a real provider key is present (not a test double).
+        return any(os.environ.get(v) for v in PROVIDER_ENV_VARS.values())
 
     def synthesize(self, goal: str, max_retries: int = 3) -> AgentManifest:
         if self._is_live():

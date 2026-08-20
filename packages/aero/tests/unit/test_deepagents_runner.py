@@ -60,9 +60,3 @@ def test_manifest_to_deepagent_kwargs(monkeypatch):
     assert kwargs["model"] == "fake-model"
     assert kwargs["subagents"][0]["name"] == "dependency-vulnerability-scanner"
     assert kwargs["skills"] == ["python-testing"]
-
-
-def test_resolve_model_offline_returns_offline_model(monkeypatch):
-    monkeypatch.setenv("AEROMESH_OFFLINE", "1")
-    model = deepagents_runner.resolve_model()
-    assert type(model).__name__ == "OfflineChatModel"

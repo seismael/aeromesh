@@ -64,8 +64,9 @@ def test_synthesize_via_llm_returns_valid_manifest():
     assert model.calls  # the model was actually invoked
 
 
-def test_synthesize_falls_back_to_template_when_offline(monkeypatch):
-    monkeypatch.setenv("AEROMESH_OFFLINE", "1")
+def test_synthesize_falls_back_to_template_when_no_key(monkeypatch):
+    for v in ["DEEPSEEK_API_KEY", "OPENAI_API_KEY", "ANTHROPIC_API_KEY", "GEMINI_API_KEY"]:
+        monkeypatch.delenv(v, raising=False)
     synth = JitSynthesizer()
     manifest = synth.synthesize("Build an anomaly detector")
     assert isinstance(manifest, AgentManifest)
