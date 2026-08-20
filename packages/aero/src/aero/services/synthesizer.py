@@ -1,6 +1,7 @@
 """LLM-driven JIT agent manifest synthesis (LLM-first with template fallback)."""
 
 import json
+import os
 import re
 from typing import Any, Dict, Optional
 
@@ -22,11 +23,9 @@ def extract_json(text: str) -> Optional[Dict[str, Any]]:
     """Extract the first JSON object from an LLM response (strips code fences)."""
     if not text:
         return None
-    # Strip ```json ... ``` fences
     fenced = re.search(r"```(?:json)?\s*(\{.*?\})\s*```", text, re.DOTALL)
     if fenced:
         text = fenced.group(1)
-    # Find the first balanced {...} block
     start = text.find("{")
     if start == -1:
         return None
@@ -45,22 +44,30 @@ def extract_json(text: str) -> Optional[Dict[str, Any]]:
 
 
 class JitSynthesizer:
-    """Synthesizes a DAM v0.1 manifest for a goal, preferring the LLM and falling back
-    to a deterministic template when no live provider key is available."""
+    """Synthesizes a DAM v0.1 manifest for a goal, using the native LangChain model
+    when a live provider key is available, else a deterministic template."""
 
-    def __init__(self, parser: Optional[ManifestParser] = None, adapter: Any = None):
+    def __init__(self, parser: Optional[ManifestParser] = None, model: Any = None):
         self.parser = parser or ManifestParser()
-        self.adapter = adapter
+        self.model = model
+
+    def _get_model(self) -> Any:
+        if self.model is not None:
+            return self.model
+        from aero.services.deepagents_runner import resolve_model
+
+        return resolve_model()
 
     def _is_live(self) -> bool:
-        if self.adapter is None:
+        if self.model is not None:
+            return True  # explicitly injected model → live
+        if os.environ.get("AEROMESH_OFFLINE") == "1":
             return False
-        if getattr(self.adapter, "offline", False):
+        try:
+            self._get_model()
+            return True
+        except AeroMeshDomainError:
             return False
-        key = (getattr(self.adapter, "api_key", "") or "").lower()
-        if not key:
-            return False
-        return not any(token in key for token in ("mock", "test", "fake"))
 
     def synthesize(self, goal: str, max_retries: int = 3) -> AgentManifest:
         if self._is_live():
@@ -71,13 +78,17 @@ class JitSynthesizer:
         return self._template_manifest(goal)
 
     def _synthesize_via_llm(self, goal: str, max_retries: int) -> AgentManifest:
+        model = self._get_model()
         last_error = None
         for attempt in range(1, max_retries + 1):
             user_prompt = f"Goal: {goal}"
             if last_error:
                 user_prompt += f"\nPrevious attempt failed schema validation: {last_error}"
-            response = self.adapter.complete_prompt(SYSTEM_PROMPT, user_prompt)
-            data = extract_json(response)
+            response = model.invoke(
+                [("system", SYSTEM_PROMPT), ("human", user_prompt)]
+            )
+            text = getattr(response, "content", str(response))
+            data = extract_json(text)
             if data is None:
                 last_error = "response contained no JSON object"
                 continue

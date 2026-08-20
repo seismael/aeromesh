@@ -15,7 +15,6 @@ from aero.domain.paths import (
     get_aeromesh_agents_dir,
 )
 from aero.infrastructure.parser import ManifestParser
-from aero.infrastructure.providers import CognitiveProviderAdapter
 from aero.services.synthesizer import JitSynthesizer
 
 
@@ -48,14 +47,8 @@ class AeroGoalDecompositionEngine:
 
     def __init__(self, parser: Optional[ManifestParser] = None, synthesizer: Optional[JitSynthesizer] = None):
         self.parser = parser or ManifestParser()
-        if synthesizer is not None:
-            self.synthesizer = synthesizer
-        else:
-            # Wire a live provider adapter so JIT synthesis uses the LLM when a
-            # real API key is available, and falls back to the template otherwise.
-            self.synthesizer = JitSynthesizer(
-                parser=self.parser, adapter=CognitiveProviderAdapter()
-            )
+        # JIT synthesis uses the native LangChain model when a live key is present.
+        self.synthesizer = synthesizer or JitSynthesizer(parser=self.parser)
 
     def _load_available_manifests(self) -> List[Tuple[str, AgentManifest]]:
         """Loads all available manifests from workspace registry and local user store."""

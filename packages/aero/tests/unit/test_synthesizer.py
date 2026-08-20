@@ -1,7 +1,9 @@
 """Tests for LLM-driven JIT agent manifest synthesis."""
 
 import json
+
 import pytest
+from langchain_core.messages import AIMessage
 
 from aero.services.synthesizer import JitSynthesizer, extract_json
 from aero.domain.errors import AeroMeshDomainError, ErrorCode
@@ -29,19 +31,18 @@ VALID_MANIFEST = {
 }
 
 
-class FakeAdapter:
-    """Fake provider adapter returning canned responses."""
+class FakeModel:
+    """Returns a fixed sequence of AIMessages (for the model.invoke interface)."""
 
-    def __init__(self, responses, api_key="sk-real-key-123"):
+    def __init__(self, responses):
         self.responses = list(responses)
-        self.api_key = api_key
         self.calls = []
 
-    def complete_prompt(self, system_prompt, user_prompt):
-        self.calls.append(user_prompt)
+    def invoke(self, messages, **kwargs):
+        self.calls.append(messages)
         if self.responses:
-            return self.responses.pop(0)
-        return "{}"
+            return AIMessage(content=self.responses.pop(0))
+        return AIMessage(content="{}")
 
 
 def test_extract_json_strips_code_fences():
@@ -55,25 +56,25 @@ def test_extract_json_finds_object_embedded_in_text():
 
 
 def test_synthesize_via_llm_returns_valid_manifest():
-    adapter = FakeAdapter([json.dumps(VALID_MANIFEST)])
-    synth = JitSynthesizer(adapter=adapter)
+    model = FakeModel([json.dumps(VALID_MANIFEST)])
+    synth = JitSynthesizer(model=model)
     manifest = synth.synthesize("Build an anomaly detector for IoT sensors")
     assert isinstance(manifest, AgentManifest)
     assert manifest.identity.id == "jit-anomaly-detector"
+    assert model.calls  # the model was actually invoked
 
 
-def test_synthesize_falls_back_to_template_when_mock_key():
-    adapter = FakeAdapter([], api_key="sk-mock-fallback-key")
-    synth = JitSynthesizer(adapter=adapter)
+def test_synthesize_falls_back_to_template_when_offline(monkeypatch):
+    monkeypatch.setenv("AEROMESH_OFFLINE", "1")
+    synth = JitSynthesizer()
     manifest = synth.synthesize("Build an anomaly detector")
     assert isinstance(manifest, AgentManifest)
     assert manifest.identity.id.startswith("jit-")
-    assert adapter.calls == []  # LLM was never called
 
 
 def test_synthesize_raises_after_persistent_invalid_output():
-    adapter = FakeAdapter(["not json at all", "also not json", "still bad"])
-    synth = JitSynthesizer(adapter=adapter)
+    model = FakeModel(["not json at all", "also not json", "still bad"])
+    synth = JitSynthesizer(model=model)
     with pytest.raises(AeroMeshDomainError) as exc:
         synth.synthesize("Build an anomaly detector")
     assert exc.value.error_code == ErrorCode.AMX_ERR_JIT_BUILD_FAILED

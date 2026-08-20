@@ -1,19 +1,18 @@
-"""AERO Agent Runner Orchestration Service."""
-
-import time
-from typing import Dict, Any, Optional
-from aero.infrastructure.parser import ManifestParser
-from aero.infrastructure.vault import ZeroTrustVaultResolver
-from aero.infrastructure.driver import LangGraphExecutionDriver
-from aero.infrastructure.diagnostics import AeroDiagnosticTracer
+"""AeroMesh runner: parse + resolve credentials + execute via Deep Agents."""
 
 import json
+import time
 from pathlib import Path
+from typing import Any, Dict, Optional
+
 from aero.domain.paths import get_aeromesh_home
+from aero.infrastructure.parser import ManifestParser
+from aero.infrastructure.vault import ZeroTrustVaultResolver
+from aero.services.deepagents_runner import DeepAgentsExecutionDriver
 
 
 class AeroAgentRunnerService:
-    """Orchestrates parsing, security resolution, driver execution, and checkpointing."""
+    """Parses a DAM manifest, resolves credentials, executes via Deep Agents, checkpoints."""
 
     def __init__(
         self, parser: ManifestParser = None, vault: ZeroTrustVaultResolver = None
@@ -50,64 +49,45 @@ class AeroAgentRunnerService:
         replay_session_id: Optional[str] = None,
         execute_tools: Optional[bool] = None,
     ) -> Dict[str, Any]:
+        del enable_diagnostics, execute_tools  # handled natively by Deep Agents
+
         if replay_session_id:
             checkpoint = self.load_checkpoint(replay_session_id)
             if checkpoint:
                 checkpoint["is_replayed"] = True
                 return checkpoint
 
-        tracer = AeroDiagnosticTracer(enabled=enable_diagnostics)
-
-        t0 = time.time()
         if manifest_object:
             manifest = manifest_object
         else:
             manifest = self.parser.parse_file(manifest_path)
-        if tracer.enabled:
-            tracer.record_span(
-                event_type="PARSE_MANIFEST",
-                component="ManifestParser",
-                duration_ms=(time.time() - t0) * 1000,
-                metadata={"agent_id": manifest.identity.id},
-            )
 
         if env_overrides:
             self.vault.override_env.update(env_overrides)
 
-        t0 = time.time()
         credentials = self.vault.resolve_requirements(
             manifest.providers, non_interactive=non_interactive
         )
-        if tracer.enabled:
-            tracer.record_span(
-                event_type="RESOLVE_VAULT",
-                component="ZeroTrustVaultResolver",
-                duration_ms=(time.time() - t0) * 1000,
-                metadata={"resolved_count": len(credentials)},
-            )
 
-        driver = LangGraphExecutionDriver(
-            manifest, credentials, tracer=tracer, execute_tools=execute_tools
-        )
+        driver = DeepAgentsExecutionDriver(manifest, credentials=credentials)
         result = driver.execute(user_intent)
 
-        res_dict = {
+        session_id = f"session-{manifest.identity.id}-{int(time.time())}"
+        self.save_checkpoint(
+            session_id,
+            {
+                "session_id": session_id,
+                "agent_id": manifest.identity.id,
+                "intent": user_intent,
+                "execution_result": result,
+                "credentials_resolved": list(credentials.keys()),
+            },
+        )
+
+        return {
             "manifest": manifest,
             "credentials_resolved": list(credentials.keys()),
             "execution_result": result,
-            "diagnostics": tracer.get_summary() if enable_diagnostics else None,
-        }
-
-        # Auto-save session checkpoint
-        session_id = f"session-{manifest.identity.id}-{int(time.time())}"
-        checkpoint_data = {
+            "diagnostics": None,
             "session_id": session_id,
-            "agent_id": manifest.identity.id,
-            "intent": user_intent,
-            "execution_result": result,
-            "credentials_resolved": list(credentials.keys()),
         }
-        self.save_checkpoint(session_id, checkpoint_data)
-        res_dict["session_id"] = session_id
-
-        return res_dict

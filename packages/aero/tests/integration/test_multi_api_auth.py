@@ -30,7 +30,7 @@ def test_multicloud_devops_execution_with_multi_credentials(monkeypatch, capsys)
     assert exit_code == 0
     captured = capsys.readouterr()
     assert "multicloud-devops-orchestrator" in captured.out
-    assert "Total Spans: 5" in captured.out
+    assert "Result:" in captured.out
 
 def test_fintech_payment_auditor_execution_with_multi_credentials(monkeypatch, capsys):
     manifest_path = os.path.join(REGISTRY_DIR, "fintech-payment-auditor.json")
