@@ -1,9 +1,11 @@
 """LangGraph Execution Driver: runs a DAM v0.1 manifest's tools + LLM in a graph."""
 
+import json
 import os
 import time
 from typing import Any, Dict, List, Optional, TypedDict
 
+import jsonschema
 from langgraph.graph import END, StateGraph
 
 from aero.domain.models import AgentManifest
@@ -171,6 +173,16 @@ class LangGraphExecutionDriver:
             tool_results = state.get("tool_results", [])
             # Non-vacuous: success requires non-empty output (LLM text or tool result).
             success = bool(output and output.strip()) or bool(tool_results)
+
+            # Enforce the declared output_contract (JSON Schema) if present.
+            contract = getattr(self.manifest.capabilities, "output_contract", None)
+            if success and contract and output and output.strip():
+                try:
+                    data = json.loads(output)
+                    jsonschema.validate(instance=data, schema=contract)
+                except Exception:
+                    success = False
+
             res = {
                 "step": "verification",
                 "status": "completed",
