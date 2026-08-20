@@ -9,6 +9,7 @@ from typing import List
 from aero.domain.errors import AeroMeshDomainError, ErrorCode, ExitCode
 from aero.domain.paths import (
     get_aeromesh_agents_dir,
+    get_aeromesh_workspace_registry_dir,
     resolve_agent_manifest_path,
 )
 from aero.services.runner import AeroAgentRunnerService
@@ -148,6 +149,11 @@ def main(args: List[str] = None) -> int:
     )
     revoke_parser.add_argument("agent_id", help="Agent id whose key to revoke")
 
+    # Command: amx index
+    subparsers.add_parser(
+        "index", help="Rebuild registry/index.json from registry/agents/"
+    )
+
     # Command: amx version
     subparsers.add_parser("version", help="Show Aero Agent Engine version")
 
@@ -155,6 +161,22 @@ def main(args: List[str] = None) -> int:
 
     if parsed.command == "version":
         print("aero / amx version 1.0.0 (AeroMesh DAM v0.1)")
+        return 0
+
+    if parsed.command == "index":
+        import datetime
+
+        entries = AeroDiscoveryEngine().build_workspace_index()
+        index_path = get_aeromesh_workspace_registry_dir().parent / "index.json"
+        payload = {
+            "index_version": "1.0.0",
+            "generated_at": datetime.datetime.now(
+                datetime.timezone.utc
+            ).isoformat(),
+            "agents": entries,
+        }
+        index_path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+        print(f"📇 Wrote registry index ({len(entries)} agents) to {index_path}")
         return 0
 
     if parsed.command == "keygen":

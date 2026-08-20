@@ -59,3 +59,8 @@ amx = "aero.presentation.cli:main"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/aero"]
+
+[tool.pytest.ini_options]
+markers = [
+    "live: tests that call a real LLM provider (skipped without a key)",
+]

@@ -43,8 +43,15 @@ def test_discovery_engine_indexing_and_tier1_search():
         assert len(results) >= 1
         top_match = results[0]
         assert top_match.record.id == "test-db-tuner"
-        assert top_match.search_tier == "TIER_1_VECTOR_INDEX"
-        assert top_match.match_score > 0.3
+        assert top_match.search_tier == "TIER_1_BM25"
+        assert top_match.match_score > 0.0
     finally:
         if tmp_path.exists():
             shutil.rmtree(tmp_path, ignore_errors=True)
+
+
+def test_search_no_match_returns_empty_not_fake():
+    """A query with no matching terms returns no results (no hard-coded fallback)."""
+    engine = AeroDiscoveryEngine()
+    results = engine.search("zzzqqqxyzzy")
+    assert results == []

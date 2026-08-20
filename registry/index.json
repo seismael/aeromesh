@@ -1,0 +1,84 @@
+{
+  "index_version": "1.0.0",
+  "generated_at": "2026-08-20T22:21:09.071876+00:00",
+  "agents": [
+    {
+      "id": "ai-rag-pipeline-architect",
+      "version": "1.0.0",
+      "name": "AI RAG Vector Indexing & Embedding Architect",
+      "domain": "Artificial Intelligence",
+      "tags": [
+        "openai",
+        "pinecone",
+        "rag",
+        "embeddings"
+      ],
+      "short_description": "Generates text embeddings via OpenAI and indexes vectors into Pinecone DB.",
+      "evaluation_trigger": "Use when building vector database RAG indexes or text embeddings.",
+      "sha256": "62c56f9f888af72a1f424de4288fa8ddabbf6f2da58e278c17ec360888606078",
+      "path": "registry/agents/ai-rag-pipeline-architect.json"
+    },
+    {
+      "id": "enterprise-security-auditor",
+      "version": "1.0.0",
+      "name": "Enterprise Repository & Secret Security Auditor",
+      "domain": "Application Security",
+      "tags": [
+        "security",
+        "secret-scanning",
+        "sast"
+      ],
+      "short_description": "Scans code repositories for exposed API tokens and delegates dependency audit to child agent.",
+      "evaluation_trigger": "Use when reviewing code for hardcoded secrets or vulnerability audits.",
+      "sha256": "ccc5698cfdf2886be380ffab3f52b3fae61d310944e4c52abe5c2680d0c20f39",
+      "path": "registry/agents/enterprise-security-auditor.json"
+    },
+    {
+      "id": "fintech-payment-auditor",
+      "version": "1.0.0",
+      "name": "FinTech Stripe & Plaid Payment Security Auditor",
+      "domain": "Financial Services",
+      "tags": [
+        "stripe",
+        "plaid",
+        "fintech",
+        "payment-audit"
+      ],
+      "short_description": "Audits Stripe payout transactions and verifies Plaid bank account balances.",
+      "evaluation_trigger": "Use when auditing payment transactions or verifying bank balances.",
+      "sha256": "b19a71dc8e4dcd423ccb54132d1fd8afc0e09a2e35f6c555bd6ba8b8ac24abf2",
+      "path": "registry/agents/fintech-payment-auditor.json"
+    },
+    {
+      "id": "multicloud-devops-orchestrator",
+      "version": "1.0.0",
+      "name": "Multi-Cloud Kubernetes & Terraform Orchestrator",
+      "domain": "DevOps & Cloud Infrastructure",
+      "tags": [
+        "aws",
+        "k8s",
+        "terraform",
+        "helm"
+      ],
+      "short_description": "Provisions AWS EKS clusters and deploys Kubernetes Helm charts.",
+      "evaluation_trigger": "Use when provisioning cloud infrastructure or deploying K8s Helm charts.",
+      "sha256": "02e4328f4cb27ed1086f6b03197e45e0c42cc5f244868a3634decd8a6588eba9",
+      "path": "registry/agents/multicloud-devops-orchestrator.json"
+    },
+    {
+      "id": "postgres-performance-tuner",
+      "version": "1.0.0",
+      "name": "PostgreSQL Query Analyzer & Index Tuner",
+      "domain": "Database Engineering",
+      "tags": [
+        "postgres",
+        "sql-optimization",
+        "index-analysis"
+      ],
+      "short_description": "Examines slow SQL queries and outputs index creation DDL scripts.",
+      "evaluation_trigger": "Use when database queries are slow. Do NOT use for database backups.",
+      "sha256": "f532b79eadafd08f5590a0a5aba70bf9a1098b78be4759a93b484951d42fd042",
+      "path": "registry/agents/postgres-performance-tuner.json"
+    }
+  ]
+}

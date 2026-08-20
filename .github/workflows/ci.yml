@@ -24,3 +24,24 @@ jobs:
 
       - name: Run tests
         run: pytest packages/aero/tests -q
+
+  live:
+    # Real provider calls; runs for this repo (not forks) and self-skips if the
+    # DEEPSEEK_API_KEY secret is not configured.
+    runs-on: ubuntu-latest
+    if: ${{ !github.event.pull_request.head.repo.fork }}
+    env:
+      DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install
+        run: pip install -e packages/aero
+
+      - name: Run live model tests
+        run: pytest packages/aero/tests_live -q

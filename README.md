@@ -175,10 +175,17 @@ Self-contained, offline-capable — no external CA or transparency log required.
 
 ---
 
-## Roadmap (not yet implemented)
+## Roadmap & deferred items
 
-- Hosted registry (today git-as-registry).
-- Sigstore/cosign transparency-log attestation (today self-contained Ed25519).
+The authoritative shipped-vs-deferred list (with *why* and *how to do it later*)
+is in [`docs/16_ROADMAP_AND_DEFERRED.md`](docs/16_ROADMAP_AND_DEFERRED.md). In brief, the deferred items are:
+
+- **Full OS-level sandbox** (container/gVisor/Firecracker) — today HTTP(S) egress allowlisting only.
+- **Sigstore transparency-log attestation** — today self-contained Ed25519.
+- **Hosted marketplace web hub** — today git-as-registry (`registry/index.json` + `registry/agents/`).
+- **Semantic/embedding search** — today real BM25 lexical search.
+- **Multi-language SDKs + a real VS Code extension** — today a thin Python SDK + stub extension.
+- **Workflow engine** — multi-agent orchestration as signed artifacts (in design; see `docs/10`).
 
 ## License
 

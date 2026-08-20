@@ -30,6 +30,21 @@ AeroMesh's security posture rests on four mechanisms:
 - There is **no multi-tenant trust boundary** in the git registry — the registry
   is a shared git repo whose commit access controls trust.
 
+### How to add later (deferred hardening)
+
+- **Full OS-level sandbox.** Run MCP stdio subprocesses inside a container /
+  gVisor / Firecracker microVM with a read-only rootfs, no default network, and
+  only the egress-proxy socket exposed, wired into `DeepAgentsExecutionDriver`'s
+  MCP spawn path. Linux-centric; on Windows it needs Docker/WSL2 — which is why
+  it is deferred rather than shipped today.
+- **Sigstore transparency log.** `amx sign` additionally produces a keyless
+  Sigstore bundle (GitHub OIDC → Fulcio ephemeral cert, logged to the public
+  Rekor instance); `amx verify` checks the bundle against Rekor. Keep the
+  self-contained Ed25519 path as an offline fallback. Needs external services,
+  so it is a later milestone.
+
+See `docs/16_ROADMAP_AND_DEFERRED.md` for the full deferred-items list.
+
 ## Supported versions
 
 Only the latest commit on `main` is supported for security fixes. The software is
