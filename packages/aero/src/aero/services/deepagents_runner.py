@@ -9,8 +9,45 @@ import json
 import os
 from typing import Any, Dict, List, Optional
 
+from langchain_core.callbacks import BaseCallbackHandler
+
 from aero.domain.models import AgentManifest
 from aero.domain.errors import AeroMeshDomainError, ErrorCode, ExitCode
+
+# Approximate USD price per million tokens (documented estimate, not billing-grade).
+PRICE_PER_MILLION = {
+    "deepseek-chat": {"input": 0.27, "output": 1.10},
+    "gpt-4o": {"input": 2.50, "output": 10.00},
+    "claude-3-5-sonnet-20241022": {"input": 3.00, "output": 15.00},
+    "gemini-2.5-flash": {"input": 0.30, "output": 2.50},
+}
+_DEFAULT_PRICE = {"input": 1.00, "output": 4.00}
+
+
+class TokenUsageCounter(BaseCallbackHandler):
+    """Accumulates input/output token usage across LLM calls."""
+
+    def __init__(self):
+        self.input_tokens = 0
+        self.output_tokens = 0
+
+    def on_llm_end(self, response, **kwargs) -> None:
+        for gen_list in response.generations:
+            for gen in gen_list:
+                msg = getattr(gen, "message", None)
+                usage = getattr(msg, "usage_metadata", None)
+                if usage:
+                    self.input_tokens += usage.get("input_tokens", 0)
+                    self.output_tokens += usage.get("output_tokens", 0)
+
+
+def estimate_cost(model_name: Optional[str], counter: TokenUsageCounter) -> float:
+    """Estimate USD cost from token usage (approximate, documented)."""
+    price = PRICE_PER_MILLION.get(model_name or "", _DEFAULT_PRICE)
+    return (
+        counter.input_tokens * price["input"]
+        + counter.output_tokens * price["output"]
+    ) / 1_000_000
 
 # Provider -> langchain "provider:model" string (native SDKs).
 PROVIDER_MODEL_STRINGS = {
@@ -226,6 +263,9 @@ class DeepAgentsExecutionDriver:
 
         self.rubric = build_rubric(manifest)
         model_instance = model or resolve_model(self.credentials)
+        self._model_name = getattr(model_instance, "model_name", None) or getattr(
+            model_instance, "model", None
+        )
 
         from deepagents import create_deep_agent
 
@@ -258,7 +298,17 @@ class DeepAgentsExecutionDriver:
         self, user_intent: str, thread_id: Optional[str] = None
     ) -> Dict[str, Any]:
         thread_id = thread_id or f"session-{self.manifest.identity.id}"
-        config = {"configurable": {"thread_id": thread_id}}
+        config: Dict[str, Any] = {"configurable": {"thread_id": thread_id}}
+
+        observability = getattr(self.manifest, "observability", None)
+        counter = None
+        if observability is not None:
+            if observability.max_execution_steps is not None:
+                config["recursion_limit"] = observability.max_execution_steps
+            if observability.cost_limit_usd is not None:
+                counter = TokenUsageCounter()
+                config["callbacks"] = [counter]
+
         state = {"messages": [{"role": "user", "content": user_intent}]}
         if self.rubric:
             state["rubric"] = self.rubric
@@ -269,10 +319,29 @@ class DeepAgentsExecutionDriver:
         success = bool(final_text and final_text.strip())
         if self.rubric:
             success = rubric_status == "passed"
+
+        usage = None
+        if counter is not None:
+            model_name = getattr(self, "_model_name", None)
+            cost = estimate_cost(model_name, counter)
+            usage = {
+                "input_tokens": counter.input_tokens,
+                "output_tokens": counter.output_tokens,
+                "estimated_cost_usd": round(cost, 6),
+            }
+            if cost > observability.cost_limit_usd:
+                raise AeroMeshDomainError(
+                    f"Estimated cost (${cost:.4f}) exceeded budget "
+                    f"(${observability.cost_limit_usd:.2f}).",
+                    ErrorCode.AMX_ERR_PROVIDER_FAILED,
+                    ExitCode.PROVIDER_FAILED,
+                )
+
         return {
             "agent_id": self.manifest.identity.id,
             "thread_id": thread_id,
             "verified_result": final_text,
             "success_criteria_met": success,
             "rubric_status": rubric_status,
+            "usage": usage,
         }

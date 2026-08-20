@@ -152,3 +152,12 @@ def test_driver_propagates_mcp_connection_failure(monkeypatch):
     with pytest.raises(AeroMeshDomainError) as exc:
         deepagents_runner.DeepAgentsExecutionDriver(_manifest(), credentials={})
     assert exc.value.error_code == ErrorCode.AMX_ERR_MCP_SPAWN_FAILED
+
+
+def test_estimate_cost_deepseek():
+    counter = deepagents_runner.TokenUsageCounter()
+    counter.input_tokens = 1_000_000
+    counter.output_tokens = 1_000_000
+    cost = deepagents_runner.estimate_cost("deepseek-chat", counter)
+    # $0.27 per 1M input + $1.10 per 1M output
+    assert abs(cost - 1.37) < 0.001
