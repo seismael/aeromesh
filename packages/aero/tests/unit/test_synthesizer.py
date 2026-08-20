@@ -64,13 +64,20 @@ def test_synthesize_via_llm_returns_valid_manifest():
     assert model.calls  # the model was actually invoked
 
 
-def test_synthesize_falls_back_to_template_when_no_key(monkeypatch):
-    for v in ["DEEPSEEK_API_KEY", "OPENAI_API_KEY", "ANTHROPIC_API_KEY", "GEMINI_API_KEY"]:
-        monkeypatch.delenv(v, raising=False)
+def test_synthesize_raises_without_key(monkeypatch):
+    """No key -> JIT synthesis raises clearly (no synthetic/template fallback)."""
+    import aero.services.deepagents_runner as dgr
+
+    def raise_no_key(credentials=None):
+        raise AeroMeshDomainError(
+            "no key", ErrorCode.AMX_ERR_VAULT_KEY_MISSING, 20
+        )
+
+    monkeypatch.setattr(dgr, "resolve_model", raise_no_key)
     synth = JitSynthesizer()
-    manifest = synth.synthesize("Build an anomaly detector")
-    assert isinstance(manifest, AgentManifest)
-    assert manifest.identity.id.startswith("jit-")
+    with pytest.raises(AeroMeshDomainError) as exc:
+        synth.synthesize("Build an anomaly detector")
+    assert exc.value.error_code == ErrorCode.AMX_ERR_VAULT_KEY_MISSING
 
 
 def test_synthesize_raises_after_persistent_invalid_output():

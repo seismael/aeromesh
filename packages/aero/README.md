@@ -1,16 +1,17 @@
 # Aero Engine (`aero` / `amx`)
 
-The AeroMesh engine and CLI: parse, sign, verify, sandbox, and execute **DAM v0.1** declarative agent manifests.
+The AeroMesh CLI: parse, sign, verify, sandbox, and run **DAM v0.1** declarative agent manifests — compiled into LangChain Deep Agents.
 
 ## Capabilities
 
 - **DAM v0.1 parser & validation** — `jsonschema`-validated manifest hydration.
-- **Ed25519 attestation** — `amx keygen` / `amx sign` / `amx verify` with `.sig` sidecars.
+- **Ed25519 attestation** — `amx keygen` / `amx sign` / `amx verify` (`.sig` sidecars).
 - **Trusted install** — `amx install` verifies signatures against `registry/trusted/` before installing.
-- **LLM-driven JIT synthesis** — synthesize a schema-valid agent manifest for any natural-language goal (offline template fallback).
-- **Network sandbox** — `allowed_domains` enforced for remote (SSE) MCP endpoints.
-- **DWM workflows** — DAG execution with cycle detection and async concurrency.
-- **Multi-provider LLM binding** — DeepSeek, Anthropic, OpenAI, Gemini (real calls with a real key).
+- **LLM-driven JIT synthesis** — synthesize a schema-valid manifest from a live model (no synthetic fallback).
+- **Real tool execution** — `mcp` providers become real LangChain tools via `langchain-mcp-adapters`.
+- **Sandbox** — deny-by-default `allowed_domains` + egress proxy on MCP tool subprocesses.
+- **Encrypted credentials** — OS-keyring-backed storage (`amx vault set`).
+- **Native providers** — DeepSeek / Anthropic / OpenAI / Gemini via `init_chat_model` (real calls).
 
 ## Quickstart
 

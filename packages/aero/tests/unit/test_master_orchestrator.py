@@ -21,8 +21,29 @@ def test_dispatch_single_agent(monkeypatch):
 
 
 def test_dispatch_natural_language_jit():
-    res = AeroMasterOrchestrator().dispatch(
+    from aero.domain.models import (
+        AgentManifest,
+        AgentIdentity,
+        AgentCapabilities,
+        CognitiveRuntimeProfile,
+    )
+
+    manifest = AgentManifest(
+        manifest_version="0.1.0",
+        identity=AgentIdentity(id="jit-test", name="JIT Test", version="0.1.0"),
+        capabilities=AgentCapabilities(
+            domain="test", tags=["test"], short_description="d", evaluation_trigger="e"
+        ),
+        cognitive_runtime=CognitiveRuntimeProfile(persona="p", success_criteria="s"),
+        providers=[],
+    )
+
+    class FakeSynthesizer:
+        def synthesize(self, goal, max_retries=3):
+            return manifest
+
+    res = AeroMasterOrchestrator(synthesizer=FakeSynthesizer()).dispatch(
         "Build a real-time anomaly detector for IoT sensors", non_interactive=True
     )
     assert res["mode"] == "JIT_AGENT"
-    assert res["result"]["manifest"].identity.id.startswith("jit-")
+    assert res["result"]["manifest"].identity.id == "jit-test"

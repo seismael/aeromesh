@@ -15,9 +15,9 @@ from aero.services.synthesizer import JitSynthesizer
 class AeroMasterOrchestrator:
     """Unified facade: run a DAM manifest, agent id, or a natural-language goal."""
 
-    def __init__(self):
+    def __init__(self, synthesizer: Optional[JitSynthesizer] = None):
         self.runner = AeroAgentRunnerService()
-        self.synthesizer = JitSynthesizer()
+        self.synthesizer = synthesizer or JitSynthesizer()
 
     def dispatch(
         self,

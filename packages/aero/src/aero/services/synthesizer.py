@@ -1,7 +1,6 @@
-"""LLM-driven JIT agent manifest synthesis (LLM-first with offline template fallback)."""
+"""LLM-driven JIT agent manifest synthesis (always real — no synthetic fallback)."""
 
 import json
-import os
 import re
 from typing import Any, Dict, Optional
 
@@ -44,8 +43,11 @@ def extract_json(text: str) -> Optional[Dict[str, Any]]:
 
 
 class JitSynthesizer:
-    """Synthesizes a DAM v0.1 manifest for a goal, using the native LangChain model
-    when a live provider key is available, else a deterministic template."""
+    """Synthesizes a DAM v0.1 manifest for a goal using a real LLM.
+
+    There is no synthetic/template fallback: without a live provider key,
+    synthesis raises a clear error. Test doubles are injected from test code.
+    """
 
     def __init__(self, parser: Optional[ManifestParser] = None, model: Any = None):
         self.parser = parser or ManifestParser()
@@ -58,21 +60,8 @@ class JitSynthesizer:
 
         return resolve_model()
 
-    def _is_live(self) -> bool:
-        if self.model is not None:
-            return True  # explicitly injected model → live
-        from aero.services.deepagents_runner import PROVIDER_ENV_VARS
-
-        # Live only when a real provider key is present (not a test double).
-        return any(os.environ.get(v) for v in PROVIDER_ENV_VARS.values())
-
     def synthesize(self, goal: str, max_retries: int = 3) -> AgentManifest:
-        if self._is_live():
-            try:
-                return self._synthesize_via_llm(goal, max_retries)
-            except AeroMeshDomainError:
-                raise
-        return self._template_manifest(goal)
+        return self._synthesize_via_llm(goal, max_retries)
 
     def _synthesize_via_llm(self, goal: str, max_retries: int) -> AgentManifest:
         model = self._get_model()
@@ -99,32 +88,3 @@ class JitSynthesizer:
             ErrorCode.AMX_ERR_JIT_BUILD_FAILED,
             ExitCode.JIT_BUILD_FAILED,
         )
-
-    def _template_manifest(self, goal: str) -> AgentManifest:
-        """Deterministic fallback manifest for offline/no-key operation."""
-        slug = re.sub(r"[^a-z0-9]+", "-", goal.lower()).strip("-")[:30] or "agent"
-        agent_id = f"jit-{slug}"
-        raw_dict = {
-            "manifest_version": "0.1.0",
-            "identity": {
-                "id": agent_id,
-                "name": f"JIT Synthesized Agent ({agent_id})",
-                "version": "0.1.0",
-                "author": "AeroEngine JIT Synthesizer",
-                "license": "MIT",
-            },
-            "capabilities": {
-                "domain": "Dynamic Multi-Domain",
-                "tags": ["jit", "dynamic", "auto-generated"],
-                "short_description": f"Auto-generated JIT agent for intent: {goal}",
-                "evaluation_trigger": goal,
-            },
-            "cognitive_runtime": {
-                "persona": f"You are a specialized autonomous agent created for: {goal}",
-                "success_criteria": f"Goal criteria met: {goal}",
-                "driver": "Driver.LangGraph",
-                "memory_policy": "CVM_LRU_PAGING",
-            },
-            "requirements": {"providers": []},
-        }
-        return self.parser.validate_dict(raw_dict)

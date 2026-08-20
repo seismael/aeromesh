@@ -47,7 +47,7 @@ Dependency direction: `presentation → services → infrastructure → domain`.
 
 ## 4. JIT synthesis flow
 
-For a natural-language goal, `JitSynthesizer` prompts a live model to emit a DAM v0.1 manifest, then schema-validates it with retry-on-error feedback. (A deterministic template is used only as a documented offline degradation.)
+For a natural-language goal, `JitSynthesizer` prompts a live model to emit a DAM v0.1 manifest, then schema-validates it with retry-on-error feedback. There is no synthetic fallback — without a provider key, synthesis raises a clear error.
 
 ## 5. Trust flow
 
