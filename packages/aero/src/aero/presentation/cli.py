@@ -39,14 +39,14 @@ def main(args: List[str] = None) -> int:
     # Command: amx audit <manifest_file>
     audit_parser = subparsers.add_parser(
         "audit",
-        help="Run static security scan and SHA-256 Sigstore attestation audit on a manifest",
+        help="Run static security scan and SHA-256 attestation audit on a manifest",
     )
-    audit_parser.add_argument("manifest", help="Path to DAM v3.0 agent.json file")
+    audit_parser.add_argument("manifest", help="Path to DAM v0.1 agent.json file")
 
     # Command: amx export-bundle <manifest_file>
     export_parser = subparsers.add_parser(
         "export-bundle",
-        help="Export a cryptographically signed Sigstore bundle for a manifest",
+        help="Export an Ed25519-signed attestation bundle for a manifest",
     )
     export_parser.add_argument("manifest", help="Path to DAM v3.0 agent.json file")
 
@@ -259,8 +259,8 @@ def main(args: List[str] = None) -> int:
                 content = f.read()
             scanner = GuardianSecurityScanner()
             bundle = scanner.export_bundle(content)
-            print(f"📦 Exported Signed Sigstore Bundle for '{bundle['agent_id']}':")
-            print(f"  Attestation Proof: {bundle['sigstore_proof']}")
+            print(f"📦 Exported Attestation Bundle for '{bundle['agent_id']}':")
+            print(f"  Attestation: {bundle['attestation']}")
             print(f"  Status: {'SECURE ✅' if bundle['is_secure'] else 'WARNING ⚠️'}")
             return 0
         except Exception as e:

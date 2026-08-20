@@ -19,7 +19,7 @@ def test_export_bundle_logic():
 
     assert bundle["bundle_version"] == "1.0.0"
     assert bundle["agent_id"] == "export-test-agent"
-    assert "sigstore:sha256:" in bundle["sigstore_proof"]
+    assert bundle["attestation"].startswith("sha256:")
 
 def test_cli_export_bundle_command():
     import shutil

@@ -221,7 +221,7 @@ class AeroTerminalUI:
 
     @staticmethod
     def render_security_audit(audit_res: Dict[str, Any]) -> None:
-        """Renders static security scanner results and Sigstore cryptographic attestations."""
+        """Renders static security scanner results and cryptographic attestations."""
         is_sec = audit_res.get("is_secure", False)
         status_str = (
             "[bold green]SECURE ✅[/bold green]"
@@ -232,7 +232,7 @@ class AeroTerminalUI:
         lines = [
             f"[bold cyan]Agent ID:[/bold cyan] {audit_res.get('agent_id')} (v{audit_res.get('version')})",
             f"[bold cyan]Security Status:[/bold cyan] {status_str}",
-            f"[bold cyan]SHA-256 Sigstore Hash:[/bold cyan] [yellow]{audit_res.get('sha256_attestation')}[/yellow]\n",
+            f"[bold cyan]SHA-256 Hash:[/bold cyan] [yellow]{audit_res.get('sha256_attestation')}[/yellow]\n",
         ]
 
         issues = audit_res.get("issues", [])

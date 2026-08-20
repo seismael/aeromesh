@@ -1,8 +1,8 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "$id": "https://raw.githubusercontent.com/aeromesh/spec/main/schemas/declarative-agent.schema.json",
-  "title": "AeroMeshOpenAgentManifest",
-  "description": "Definitive open standard for lightweight declarative AI agent configurations (DAM v3.0 OpenAgent Standard).",
+  "$id": "urn:aeromesh:schemas:declarative-agent:0.1.0",
+  "title": "AeroMesh Declarative Agent Manifest",
+  "description": "Declarative Agent Manifest (DAM) v0.1 schema for portable, signed, sandboxed AI agents.",
   "type": "object",
   "required": [
     "manifest_version",

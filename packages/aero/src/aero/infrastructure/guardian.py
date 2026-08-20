@@ -6,7 +6,7 @@ from aero.infrastructure.parser import ManifestParser
 
 
 class GuardianSecurityScanner:
-    """Performs static analysis, secret exposure checks, and SHA-256 Sigstore hashing over agent manifests."""
+    """Performs static analysis, secret exposure checks, and SHA-256 hashing over agent manifests."""
 
     def __init__(self, parser: ManifestParser = None):
         self.parser = parser or ManifestParser()
@@ -39,7 +39,7 @@ class GuardianSecurityScanner:
         }
 
     def export_bundle(self, raw_json: str) -> Dict[str, Any]:
-        """Generates a signed JSON bundle containing manifest text, security audit result, and SHA-256 Sigstore hash."""
+        """Generates a bundle containing manifest text, security audit result, and SHA-256 hash."""
         scan_res = self.scan_manifest_content(raw_json)
         return {
             "bundle_version": "1.0.0",
@@ -48,5 +48,5 @@ class GuardianSecurityScanner:
             "sha256_attestation": scan_res["sha256_attestation"],
             "is_secure": scan_res["is_secure"],
             "manifest_data": self.parser.parse_raw(raw_json),
-            "sigstore_proof": f"sigstore:sha256:{scan_res['sha256_attestation']}",
+            "attestation": f"sha256:{scan_res['sha256_attestation']}",
         }

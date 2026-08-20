@@ -16,7 +16,7 @@ def test_schema_binding_service():
     info = service.get_schema_binding_info()
 
     assert "schema_uri" in info
-    assert info["manifest_version"] == "3.0.0"
+    assert info["manifest_version"] == "0.1.0"
 
     annotated = service.validate_and_annotate_manifest(VALID_MANIFEST)
     assert annotated["is_valid"] is True

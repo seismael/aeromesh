@@ -12,11 +12,11 @@ class AeroSchemaBindingService:
         self.parser = parser or ManifestParser()
 
     def get_schema_binding_info(self) -> Dict[str, Any]:
-        """Returns standard DAM v3.0 JSON Schema URI and description metadata."""
+        """Returns DAM v0.1 JSON Schema identifier and description metadata."""
         return {
-            "schema_uri": "https://schemas.aeromesh.dev/v3.0/declarative-agent.schema.json",
+            "schema_uri": "urn:aeromesh:schemas:declarative-agent:0.1.0",
             "local_schema_path": os.path.abspath(SCHEMA_PATH),
-            "manifest_version": "3.0.0",
+            "manifest_version": "0.1.0",
             "supported_drivers": [
                 "Driver.LangGraph",
                 "Driver.LangChain",
