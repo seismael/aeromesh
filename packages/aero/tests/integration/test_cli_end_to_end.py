@@ -58,7 +58,7 @@ def test_amx_version_command(capsys):
     exit_code = main(["version"])
     assert exit_code == 0
     captured = capsys.readouterr()
-    assert "aero / amx version 0.1.0" in captured.out
+    assert "aero / amx version 1.0.0" in captured.out
 
 def test_amx_validate_command_success(workspace_tmp_dir):
     manifest_file = os.path.join(workspace_tmp_dir, "valid_agent.json")

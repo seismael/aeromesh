@@ -155,7 +155,7 @@ def main(args: List[str] = None) -> int:
     parsed = parser.parse_args(args)
 
     if parsed.command == "version":
-        print("aero / amx version 0.1.0 (AeroMesh DAM v0.1)")
+        print("aero / amx version 1.0.0 (AeroMesh DAM v0.1)")
         return 0
 
     if parsed.command == "keygen":
