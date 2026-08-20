@@ -1,27 +1,50 @@
-# AeroMesh — Declarative Agents, Synthesized on Demand, Signed & Sandboxed
+# AeroMesh — Declarative, Signed, Sandboxed Agents on Deep Agents
 
-AeroMesh is a **declarative agent standard + a thin runtime built on LangChain Deep Agents** that solves three real problems:
+AeroMesh is a **declarative agent standard + a thin trust layer built on LangChain Deep Agents**. It does **not** implement an agent runtime — Deep Agents already does that (planning, subagents, skills, filesystem, HITL, memory). AeroMesh adds the four things Deep Agents does not give you:
 
-1. **Don't rebuild agents every time** — describe an agent once as a portable JSON manifest (**DAM v0.1**), not as bespoke code or a fat prompt.
-2. **Let the LLM build agents on the fly** — for a goal no existing agent covers, AeroMesh synthesizes a schema-valid manifest from a live model (with a deterministic offline fallback).
-3. **Trust agents you didn't write** — manifests are **Ed25519-signed**, and `amx install` refuses unverified marketplace agents; the runtime enforces each agent's `allowed_domains` sandbox.
+1. **A declarative standard (DAM v0.1)** — describe an agent as a portable JSON manifest, not code or a fat prompt.
+2. **LLM-driven synthesis** — turn a natural-language goal into a schema-valid manifest with a live model.
+3. **A trusted marketplace** — Ed25519-signed manifests; `amx install` verifies the signer before running.
+4. **A sandbox** — deny-by-default `allowed_domains` + an egress proxy around MCP tool subprocesses.
 
-The DAM manifest **compiles into `create_deep_agent()`** — so agents get planning, subagents, skills, filesystem, and human-in-the-loop out of the box, while AeroMesh adds the declarative standard, signing/verification, JIT synthesis, and the sandbox on top.
+A DAM manifest **compiles into `create_deep_agent()`**, so you get Deep Agents' full runtime, plus AeroMesh's declaration/trust/sandbox on top.
 
 ---
 
-## What actually works today (v0.1)
+## Why AeroMesh — the value on top of Deep Agents
 
-- **DAM v0.1 manifest schema** — `jsonschema`-validated, with machine-readable error codes (`AMX_ERR_*`).
-- **Ed25519 attestation** — `amx keygen` / `amx sign` / `amx verify`, with `<manifest>.sig` sidecars.
-- **Trusted install gating** — `amx install` verifies a marketplace agent's signature against `registry/trusted/<id>.pub` and refuses mismatches (`--insecure` opts out).
-- **LLM-driven JIT synthesis** — `amx run "<natural-language goal>"` decomposes the goal, reuses registry agents where they match, and synthesizes a schema-valid manifest for the rest when a live provider key is present (template fallback offline).
-- **Network sandbox** — a manifest's `allowed_domains` is enforced for remote (SSE) MCP tool endpoints.
-- **Real tool execution** — the driver invokes a manifest's declared MCP tools (`required_tools`) over stdio/SSE and feeds the results back to the LLM before verifying the output (degrades gracefully if a tool server is unavailable).
-- **Workflows (DWM)** — DAG execution with cycle detection, dependency-aware async concurrency, and crontab scheduling.
-- **Multi-provider LLM binding** — DeepSeek, Anthropic, OpenAI, Gemini (real API calls when a real key is set; mock only for clearly-marked test keys).
+Deep Agents gives you a *framework*. AeroMesh gives you a *format and a trust boundary*:
 
-> **Honesty note:** `amx run` requires a live provider API key to actually call a model, and a running MCP tool server to actually execute tools. Without them, execution degrades to a clearly-marked offline/mock fallback. The mock-first behavior of earlier versions is gone.
+| Need | What AeroMesh adds |
+|---|---|
+| **Portability** | One manifest runs on DeepSeek / Anthropic / OpenAI / Gemini (native `init_chat_model`). |
+| **No code** | Agents are declared as JSON; an LLM can author them (`amx run "<goal>"`). |
+| **Distribution** | Git-as-registry: publish a manifest + public key, others `amx install` it. |
+| **Trust** | "Download an agent and prove who signed it and that it wasn't tampered with." |
+| **Safety** | An agent's `allowed_domains` is enforced on its MCP tool subprocesses. |
+
+### Use cases
+
+- **Enterprise agent governance** — a team maintains a signed registry of approved agents; engineers `amx install` and run them, knowing they are verified and sandboxed.
+- **Portable, vendor-neutral agents** — the same manifest runs across model providers without code changes.
+- **On-demand agent authoring** — "build me an agent that monitors server uptime" → a signed, runnable manifest in seconds.
+- **Safe third-party agents** — fetch an agent, verify its signer, and run it with restricted egress ("npm for AI agents, with security").
+
+---
+
+## What works today (v0.1)
+
+- **DAM v0.1 schema** — `jsonschema`-validated, machine-readable error codes (`AMX_ERR_*`).
+- **Ed25519 attestation** — `amx keygen` / `sign` / `verify` (`.sig` sidecars).
+- **Trusted install gating** — `amx install` verifies against `registry/trusted/<id>.pub`; refuses mismatches (`--insecure` opts out).
+- **Real LLM** — native `init_chat_model` (DeepSeek/Anthropic/OpenAI/Gemini); no mocks, no canned output.
+- **LLM-driven JIT synthesis** — `amx run "<natural-language goal>"` synthesizes a schema-valid manifest with a live model.
+- **Real tool execution** — a manifest's `mcp` providers become real LangChain tools (`langchain-mcp-adapters`) and are passed to `create_deep_agent`.
+- **`sub_agent` + `skill` providers** — mapped to Deep Agents subagents/skills.
+- **Encrypted credentials** — OS-keyring-backed storage (`amx vault set`).
+- **Sandbox** — deny-by-default network policy + egress proxy enforcing `allowed_domains`.
+
+> **Honesty note:** a live provider key is required for real model calls; a running MCP server is required for real tool execution. There are **no fakes or mocks in production code** — test doubles exist only in `tests/`.
 
 ---
 
@@ -30,28 +53,22 @@ The DAM manifest **compiles into `create_deep_agent()`** — so agents get plann
 ```
 aeromesh/
 ├── .agents/                Governance layer (AGENTS.md)
-├── docs/                   Design specs, PRD, architecture
-├── schemas/                DAM v0.1 & DWM v1.0 JSON Schemas
+├── docs/                   Specifications (PRD, architecture, standard, security)
+├── schemas/                DAM v0.1 JSON Schema
 ├── packages/
-│   ├── aero/               The engine + CLI (amx)
+│   ├── aero/               The standard + CLI (amx) + trust/sandbox
 │   └── sdk-python/         Embeddable Python SDK (aeromesh-sdk)
 └── registry/
-    ├── agents/             Signed agent manifests
-    ├── workflows/          Declarative workflow DAGs
+    ├── agents/             Agent manifests
     └── trusted/            Public keys for install verification
 ```
 
 ---
 
-## Install
+## Install & test
 
 ```bash
 pip install -e packages/aero
-```
-
-## Test
-
-```bash
 pytest packages/aero/tests
 ```
 
@@ -60,58 +77,53 @@ pytest packages/aero/tests
 ## Quickstart (`amx`)
 
 ```bash
-# Scaffold a new manifest
+# Scaffold + validate a manifest
 amx init my-custom-agent
-
-# Validate against the DAM v0.1 schema
 amx validate registry/agents/postgres-performance-tuner.json
 
-# Generate a signing key, sign, and verify
+# Sign / verify (trust)
 amx keygen
 amx sign registry/agents/postgres-performance-tuner.json
 amx verify registry/agents/postgres-performance-tuner.json
 
-# Run a single agent (set the required credential first)
+# Run a single agent
 $env:DB_CONNECT_STRING="postgresql://localhost:5432/db"
 amx run registry/agents/postgres-performance-tuner.json "Optimize slow join query"
 
-# Run an unbounded natural-language goal (JIT synthesis)
-amx run "Analyze slow Postgres queries AND generate a security audit report"
+# Run an unbounded natural-language goal (JIT synthesis with a live model)
+amx run "Build an agent that monitors server uptime and alerts on downtime"
 ```
 
 ---
 
 ## The trust model
 
-1. Authors run `amx keygen` and `amx sign`, committing the manifest + `.sig` and their public key to `registry/trusted/`.
-2. Consumers run `amx install`; the engine verifies the manifest's Ed25519 signature **and** that it was produced by the trusted key for that agent id.
-3. At runtime, the agent's `allowed_domains` restrict its remote tool endpoints.
+1. Authors `amx keygen` + `amx sign`, committing the manifest + `.sig` and public key to `registry/trusted/`.
+2. Consumers `amx install`; the engine verifies the Ed25519 signature **and** the trusted signer.
+3. At runtime, the agent's `allowed_domains` restricts its MCP tool egress via the proxy.
 
-This is a self-contained, offline-capable trust model (no external CA or transparency log required for v0.1).
+Self-contained, offline-capable — no external CA or transparency log required for v0.1.
 
 ---
 
-## Architecture (honest summary)
+## Architecture
 
-`packages/aero/src/aero/` is a layered codebase:
+`packages/aero/src/aero/`:
 
-- `domain/` — dataclass models, error taxonomy, path resolution.
-- `infrastructure/` — schema parser, Ed25519 attestation, key store, sandbox firewall, egress proxy, credential store.
-- `services/` — Deep Agents runner (DAM → `create_deep_agent`), orchestrator, discovery, JIT synthesizer, trust.
-- `presentation/` — CLI (`amx`) and Rich terminal UI.
+- `domain/` — models, error taxonomy, paths.
+- `infrastructure/` — parser, Ed25519 attestation, key store, credential store, sandbox firewall, egress proxy.
+- `services/` — Deep Agents runner (DAM → `create_deep_agent`), orchestrator, JIT synthesizer, discovery, trust.
+- `presentation/` — CLI (`amx`) + Rich UI.
 
-Agent execution is delegated to **LangChain Deep Agents** (`create_deep_agent`); AeroMesh does not implement its own agent runtime.
+**Agent execution is delegated to Deep Agents.** AeroMesh is the declarative + trust + sandbox layer, not an agent runtime.
 
 ---
 
 ## Roadmap (not yet implemented)
 
-- HTTP marketplace registry (today it's git-as-registry).
-- Sigstore/cosign transparency-log attestation (today it's self-contained Ed25519).
-- OS-keyring-backed secret storage (today credentials are stored locally in plaintext under `~/.aeromesh/`).
-- Real per-tool process isolation / a true egress proxy (today the firewall gates remote MCP endpoints, not arbitrary subprocess network).
-
-See `docs/` for detailed specifications.
+- Hosted registry (today git-as-registry).
+- Sigstore/cosign transparency-log attestation (today self-contained Ed25519).
+- `output_contract` mapped to Deep Agents `RubricMiddleware` (verification).
 
 ## License
 

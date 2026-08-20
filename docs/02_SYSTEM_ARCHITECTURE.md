@@ -1,50 +1,63 @@
 # System Architecture: AeroMesh (v0.1)
 
-**Status:** v0.1 — matches the implemented code.
+**Status:** v0.1 — matches the implemented code (built on LangChain Deep Agents).
 
 ## 1. Overview
 
-AeroMesh is a layered Python engine under `packages/aero/src/aero/`:
+AeroMesh is a **declarative, signed, sandboxed standard that compiles into Deep Agents**. It does not implement an agent runtime.
 
 ```
-presentation/   CLI (amx) + Rich terminal UI
+DAM v0.1 manifest ──▶ services/deepagents_runner.py ──▶ create_deep_agent()
+                        │                                ├─ planning (TodoList)
+                        │                                ├─ subagents (sub_agent providers)
+                        │                                ├─ skills (skill providers)
+                        │                                ├─ MCP tools (mcp providers)
+                        │                                └─ filesystem / memory / HITL
+                        │
+   (AeroMesh adds on top)  Ed25519 sign/verify · JIT synthesis · marketplace · sandbox/egress
+```
+
+## 2. Layered code (`packages/aero/src/aero/`)
+
+```
+presentation/    CLI (amx) + Rich terminal UI
     │
-services/       orchestrator, pipeline, workflow, discovery, synthesizer (JIT), preflight, trust
+services/        deepagents_runner (DAM → create_deep_agent), orchestrator,
+                 JIT synthesizer, discovery, trust
     │
-infrastructure/ parser, attestation (Ed25519), keystore, providers, MCP drivers, sandbox, diagnostics, LangGraph driver
+infrastructure/  parser, Ed25519 attestation, key store, credential store,
+                 sandbox firewall, egress proxy
     │
-domain/         dataclass models, error taxonomy (AMX_ERR_*), OS-agnostic paths
+domain/          models, error taxonomy (AMX_ERR_*), OS-agnostic paths
 ```
 
 Dependency direction: `presentation → services → infrastructure → domain`. The `domain` layer has zero vendor dependencies.
 
-## 2. Execution flow (`amx run`)
+## 3. Execution flow (`amx run`)
 
-1. **Parse** — validate the manifest against the DAM v0.1 schema, hydrate into dataclasses.
-2. **Preflight** — ensure a provider and required credentials are available (offline fallback if none).
-3. **Resolve credentials** — via the vault resolver (env/config/credential-file, with explicit approval in interactive sessions).
-4. **Execute** — the LangGraph driver runs plan → execute → verify:
-   - **execute** invokes the manifest's declared MCP tools (`required_tools`) over stdio/SSE, then feeds the tool results back into the LLM prompt;
-   - **verify** marks success based on non-empty output (non-vacuous).
-5. **Checkpoint** — save a session checkpoint for replay.
+1. **Parse** — validate the manifest against the DAM v0.1 schema.
+2. **Resolve credentials** — via the vault (env / OS keyring / config, with explicit approval in interactive sessions).
+3. **Compile** — `deepagents_runner.manifest_to_deepagent_kwargs()` maps the manifest to `create_deep_agent()`:
+   - `identity.name` → `name`; `cognitive_runtime.persona` → `system_prompt`.
+   - `cognitive_runtime.driver`/env → `model` (native `init_chat_model`).
+   - `mcp` providers → LangChain tools (`langchain-mcp-adapters`).
+   - `sub_agent` providers → Deep Agents subagents; `skill` providers → skills.
+4. **Execute** — Deep Agents runs the agent (planning, tools, subagents, HITL).
+5. **Checkpoint** — save a session checkpoint.
 
-## 3. JIT synthesis flow
+## 4. JIT synthesis flow
 
-For an unbounded natural-language goal:
+For a natural-language goal, `JitSynthesizer` prompts a live model to emit a DAM v0.1 manifest, then schema-validates it with retry-on-error feedback. (A deterministic template is used only as a documented offline degradation.)
 
-1. `AeroGoalDecompositionEngine` decomposes the goal and matches known registry agents by keyword.
-2. Unhandled clauses are synthesized by `JitSynthesizer`: the LLM emits a JSON manifest, which is schema-validated with retry-on-error feedback.
-3. Without a live provider key, a deterministic template manifest is used instead.
-
-## 4. Trust flow
+## 5. Trust flow
 
 1. Authors: `amx keygen` (Ed25519) → `amx sign` (`.sig` sidecar) → commit public key to `registry/trusted/`.
-2. Consumers: `amx install` verifies the signature **and** that it matches the trusted key for that agent id.
+2. Consumers: `amx install` verifies the signature **and** the trusted signer.
 
-## 5. Concurrency
+## 6. Sandbox
 
-`AeroWorkflowEngine` executes workflow DAGs with `asyncio` + a `ThreadPoolExecutor`. Dependent steps await their prerequisites; failures propagate to dependents (no deadlocks); the pool is shut down on close.
+`allowed_domains` is deny-by-default. A local egress proxy is injected into MCP tool subprocesses (`HTTP_PROXY`/`HTTPS_PROXY`) so their outbound HTTP(S) is gated by the allowlist.
 
-## 6. What is intentionally NOT here
+## 7. What is intentionally NOT here
 
-LangGraph is an **internal driver only**. There is no event bus, no "cognitive virtual memory", no multi-language SDK suite beyond `sdk-python`, and no hosted marketplace — these were aspirational and are tracked in the roadmap, not claimed as shipped.
+AeroMesh is **not** an agent runtime, LLM provider layer, or MCP transport — those come from Deep Agents / LangChain / `langchain-mcp-adapters`. There is no hand-rolled engine, no "cognitive virtual memory", no multi-language SDK suite beyond `sdk-python`, and no hosted marketplace.

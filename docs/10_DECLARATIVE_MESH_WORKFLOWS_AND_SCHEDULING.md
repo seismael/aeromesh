@@ -1,5 +1,7 @@
 # Declarative Mesh Workflows (DWM v1.0) & Scheduled Execution Specification
 
+> **Status: removed.** The hand-rolled workflow engine and `amx workflow`/`amx pipeline` commands were removed in the v0.1 refactor. Orchestration is now delegated to Deep Agents (subagents/planning) and LangGraph. This document is retained for historical reference only.
+
 **Document Version:** 1.0.0 (Authoritative Final Release)  
 **Specification:** AeroMesh Declarative Mesh Workflows (DWM v1.0)  
 **Schema:** [`schemas/declarative-workflow.schema.json`](file:///c:/dev/projects/aeromesh/schemas/declarative-workflow.schema.json)  
