@@ -37,6 +37,7 @@ dependencies = [
     "jsonschema>=4.20.0",
     "rich>=13.7.0",
     "cryptography>=42.0.0",
+    "keyring>=24.0.0",
     "deepagents>=0.6.0",
     "langchain>=1.0.0",
     "langchain-deepseek>=1.0.0",
