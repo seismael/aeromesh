@@ -201,6 +201,21 @@ is in [`docs/16_ROADMAP_AND_DEFERRED.md`](docs/16_ROADMAP_AND_DEFERRED.md). In b
 - **Semantic/embedding search** — today real BM25 lexical search.
 - **Multi-language SDKs + a real VS Code extension** — today a thin Python SDK + stub extension.
 
+## Versioning
+
+AeroMesh versions **two axes separately**:
+
+| Axis | What it versions | Current |
+|---|---|---|
+| **Software** (`amx`, `aero`, `sdk-python`) | the tool itself (semver) | `0.1.0` |
+| **DAM standard** (`manifest_version`) | the agent manifest format | `0.1.0` |
+| **DWM standard** (`workflow_version`) | the workflow manifest format | `0.1.0` |
+
+A manifest declares which standard it targets; the tool reports both — `amx version`
+→ `aero 0.1.0 (DAM v0.1 · DWM v0.1)`. The software and the standards evolve
+independently: a future `amx` can support DAM `v0.1` and `v0.2` at once. (An early
+`1.0.0` was retracted in favor of `0.1.0` to reflect actual maturity.)
+
 ## License
 
 Apache License 2.0 — see [`LICENSE`](LICENSE).

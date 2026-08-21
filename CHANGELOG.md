@@ -4,75 +4,47 @@ All notable changes to AeroMesh are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/), and this project adheres to
 [Semantic Versioning](https://semver.org/).
 
-## [Unreleased]
+> **Versioning note:** AeroMesh versions the **software** (this changelog) and the
+> **DAM/DWM standards** separately. The standards are `v0.1`. The software was
+> briefly released as `1.0.0` and then **retracted to `0.1.0`** to honestly reflect
+> the project's maturity (egress-only sandbox, self-contained attestation, no
+> hosted registry). See the README "Versioning" section.
 
-### Added
-- **Workflows (DWM v0.1)** — a signed, shareable DAG of already-verified agents,
-  compiled into a LangGraph `StateGraph` of Deep Agents. `amx workflow`
-  (`init`/`sign`/`verify`/`install`/`run`/`share`/`revoke`) mirrors the agent
-  commands; `install` enforces recursive trust (the workflow's signature **and**
-  every referenced agent). `amx workflow run "<goal>"` synthesizes a workflow via
-  a live LLM grounded on the agent catalog.
-- **Real BM25 search** (`amx search`) replacing the placeholder scoring; no-match
-  queries return empty.
-- **Live-model CI** (`packages/aero/tests_live/` + a secret-gated GitHub Actions
-  job) running real DeepSeek calls.
-- **Registry index** (`amx index` → `registry/index.json`).
-
-### Fixed
-- `amx init` now scaffolds `manifest_version: "0.1.0"` (was the non-existent
-  `"3.0.0"`); the schema description, registry manifests, and test fixtures were
-  normalized to DAM v0.1.
-
-### Changed
-- **Real session persistence**: the Deep Agents checkpointer and store are now
-  SQLite-backed (`~/.aeromesh/checkpoints.sqlite` + `memory.sqlite`) instead of
-  in-memory, so conversations survive process restarts.
-- `amx run --replay <session>` now **resumes** the session's thread (continuing
-  the conversation) instead of re-reading a stale JSON result blob. `amx history`
-  lists recorded sessions from the session registry.
-
-### Docs
-- Rewrote `docs/09` to report honest phase status (Phase 1 shipped; Phases 2–5
-  deferred/removed) instead of "ALL 5 PHASES 100% IMPLEMENTED".
-- Corrected stale honesty notes in `docs/06` (OS-keyring credential encryption
-  and the egress proxy are shipped, not roadmap) and clarified the DAM v0.1 vs
-  software 1.0.0 versioning in `SECURITY.md`/`CONTRIBUTING.md`.
-
-## [1.0.0] — 2026-08-20
+## [0.1.0] — 2026-08-20
 
 ### Architecture
-- Refactored AeroMesh to compile **DAM v0.1** manifests into **LangChain Deep
-  Agents** (`create_deep_agent`) instead of a hand-rolled engine.
-- Removed the redundant hand-rolled engine (`providers`, `driver`, `mcp`,
-  `harness`, `diagnostics`) and orchestration (`pipeline`, `workflow`,
-  `decomposition`, `preflight`).
+- Compile **DAM v0.1** manifests into **LangChain Deep Agents** (`create_deep_agent`)
+  instead of a hand-rolled engine; removed the redundant engine/orchestration modules.
+- **Workflows (DWM v0.1)** — a signed DAG of verified agents compiled into a
+  LangGraph `StateGraph` of Deep Agents.
 
 ### Added
-- **DAM v0.1** declarative manifest standard (schema + parser + validation).
-- **Ed25519 trust**: `amx keygen` / `sign` / `verify`, verified `install` gating,
-  and **key revocation** (`amx revoke`).
-- **Encrypted signing key** at rest (Fernet + OS keyring).
-- **Encrypted credentials** (OS keyring, `amx vault set`).
-- **LLM-driven JIT synthesis** (native `init_chat_model`, strictly LLM-driven —
-  no synthetic fallback).
-- **Real MCP tools** via `langchain-mcp-adapters` (declared tools are a hard
-  requirement; failures surface as clear errors).
-- **Sandbox**: deny-by-default `allowed_domains` + egress proxy on MCP subprocesses.
-- **Output verification** via Deep Agents `RubricMiddleware` (`output_contract`).
-- **Persistence**: checkpointer + store wired (session resume, HITL, memory,
-  multi-turn conversation).
-- **Observability enforcement**: `max_execution_steps` (recursion limit) and
-  `cost_limit_usd` (token accounting).
-- `sub_agent` + `skill` providers mapped to Deep Agents subagents/skills.
-- CI workflow (GitHub Actions, Python 3.11–3.13).
-
-### Changed
-- Providers resolved via native `init_chat_model` (DeepSeek/Anthropic/OpenAI/Gemini).
-- Removed `amx pipeline` and `amx workflow` commands and the SDK `run_workflow`.
-- Fakes/mocks confined to `tests/`; production code is always real.
+- **DAM v0.1** declarative agent standard (schema + parser + validation).
+- **DWM v0.1** declarative workflow standard (schema + parser + DAG validation:
+  unique ids, referential integrity, cycle detection).
+- **Ed25519 trust** — `amx keygen`/`sign`/`verify`, verified `install` gating,
+  revocation (`amx revoke`), and a **signed registry** (`.sig` sidecars +
+  `registry/trusted/`).
+- **Workflows** — `amx workflow init/sign/verify/install/run/share/revoke`, with
+  **recursive trust** (a workflow installs only when the workflow *and* every
+  referenced agent verify) and **JIT workflow synthesis** (`amx workflow run "<goal>"`).
+- **LLM-driven JIT synthesis** for agents (`amx run "<goal>"`) — real model, no fallback.
+- **Real MCP tools** via `langchain-mcp-adapters` (declared tools are hard requirements).
+- **Sandbox** — deny-by-default `allowed_domains` + egress proxy on MCP subprocesses.
+- **Output verification** via Deep Agents `RubricMiddleware`.
+- **Persistent sessions** — SQLite checkpointer/store; `amx history` + `amx run --replay` (resume).
+- **Real BM25 search** (`amx search`); **registry index** (`amx index`).
+- **Encrypted credentials** and **encrypted signing key** at rest (OS keyring).
+- **Live-model CI** (`packages/aero/tests_live/`, secret-gated GitHub Actions job).
+- `sub_agent` + `skill` providers; observability (`max_execution_steps`, `cost_limit_usd`).
+- Python SDK: `AeroKernel.run_agent` / `run_workflow`.
 
 ### Security
-- Signing private keys are no longer stored in plaintext.
-- Trusted keys can now be revoked.
-- MCP connection failures are surfaced (never silently degraded to LLM-only).
+- Signing private keys encrypted at rest; trusted keys revocable.
+- MCP connection failures surfaced (never silently degraded to LLM-only).
+- Recursive workflow trust composes a verified workflow out of verified agents.
+
+### Fixed
+- `manifest_version` normalized `3.0.0` → `0.1.0` (the "3.0.0" standard never existed).
+- `amx install` preserves the `.sig` sidecar so installed artifacts stay verifiable.
+- Clean async shutdown (no "pending task" warnings) and resume-from-file-path sessions.

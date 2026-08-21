@@ -5,7 +5,7 @@
 > v0.1). The rest is deferred. See `README.md`, `CHANGELOG.md`, and `SECURITY.md`
 > for the authoritative current state.
 
-**Document Version:** 1.0.0 (roadmap)  
+**Document Version:** 0.1.0 (roadmap)  
 **Execution Strategy:** 5-Phase Incremental Delivery Plan  
 **Status:** Phases 1 & 5 + persistence/search/CI shipped ✅ · Phases 2–4 partial/deferred
 

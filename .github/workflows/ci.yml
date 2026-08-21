@@ -20,7 +20,7 @@ jobs:
           cache: pip
 
       - name: Install
-        run: pip install -e packages/aero
+        run: pip install -e "packages/aero[dev]"
 
       - name: Run tests
         run: pytest packages/aero/tests -q
@@ -41,7 +41,7 @@ jobs:
           cache: pip
 
       - name: Install
-        run: pip install -e packages/aero
+        run: pip install -e "packages/aero[dev]"
 
       - name: Run live model tests
         run: pytest packages/aero/tests_live -q

@@ -48,5 +48,5 @@ See `docs/16_ROADMAP_AND_DEFERRED.md` for the full deferred-items list.
 ## Supported versions
 
 Only the latest commit on `main` is supported for security fixes. The software is
-`1.0.0`; the DAM standard is `v0.1`. The sandbox is HTTP(S) egress allowlisting,
+`0.1.0`; the DAM standard is `v0.1`. The sandbox is HTTP(S) egress allowlisting,
 not full OS isolation — treat third-party agents accordingly.

@@ -218,7 +218,7 @@ def main(args: List[str] = None) -> int:
         return _handle_workflow(parsed)
 
     if parsed.command == "version":
-        print("aero / amx version 1.0.0 (AeroMesh DAM v0.1)")
+        print("aero / amx version 0.1.0 (DAM v0.1 · DWM v0.1)")
         return 0
 
     if parsed.command == "index":

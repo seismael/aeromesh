@@ -1,6 +1,6 @@
 # User Experience & End-to-End Workflows
 
-**Status:** v1.0.0
+**Status:** v0.1.0
 
 This document walks through **how AeroMesh is actually used** — the three core
 experiences, what happens under the hood at each step, and why the design is

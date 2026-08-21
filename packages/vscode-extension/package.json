@@ -2,7 +2,7 @@
   "name": "aeromesh-vscode-studio",
   "displayName": "AeroMesh Studio & Schema Validator",
   "description": "VS Code IDE extension providing DAM v0.1 schema validation, autocomplete, and live amx execution.",
-  "version": "1.0.0",
+  "version": "0.1.0",
   "publisher": "aeromesh",
   "engines": {
     "vscode": "^1.85.0"

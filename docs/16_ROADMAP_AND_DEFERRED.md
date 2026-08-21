@@ -3,7 +3,7 @@
 > Honest status: what's shipped vs deferred, with *why* and *how to do it later*.
 > This is the authoritative "remaining items" list.
 
-## Shipped (v1.0.0)
+## Shipped (v0.1.0)
 
 - DAM v0.1 declarative standard + JSON schema + parser.
 - Ed25519 sign/verify/revoke; encrypted signing key at rest; encrypted credentials (OS keyring).
@@ -56,6 +56,6 @@
   TS/Go SDKs that wrap the `amx` CLI (the runtime is Python).
 
 ### 6. Workflow engine (multi-agent orchestration as signed artifacts)
-- **Status:** shipped in v1.0.0 — `amx workflow` (DWM v0.1) compiles a signed DAG
+- **Status:** shipped in v0.1.0 — `amx workflow` (DWM v0.1) compiles a signed DAG
   of verified agents into a LangGraph `StateGraph` of Deep Agents; `install`
   enforces recursive trust. See `docs/10`.
