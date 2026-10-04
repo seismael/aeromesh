@@ -91,7 +91,8 @@ jobs:
   publish:
     # A dedicated release commit is the operator's publication instruction.
     # The script validates the exact subject, event, SHA, versions and metadata.
-    if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && startsWith(github.event.head_commit.message, 'release: v') }}
+    if: >-
+      ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && startsWith(github.event.head_commit.message, 'release: v') }}
     needs: [test, distribution, isolated-process]
     runs-on: ubuntu-latest
     timeout-minutes: 15
