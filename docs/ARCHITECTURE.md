@@ -1,6 +1,6 @@
 # Architecture
 
-The dependency direction remains presentation → services → infrastructure → domain. Deep Agents implements the agent loop; LangGraph schedules workflows. AeroMesh translates a deliberately small configuration surface and enforces its boundary before invoking either framework.
+The dependency direction is presentation → services → infrastructure → domain. Deep Agents implements the agent loop; LangGraph schedules workflows. AeroMesh translates a deliberately small configuration surface and enforces its boundary before invoking either framework.
 
 ## Artifact lifecycle
 
@@ -28,7 +28,7 @@ An SDK user can execute arbitrary Python and has the host application's authorit
 
 Each step receives a JSON envelope containing `task`, `workflow_input`, `dependency_outputs`, and `context_handling`. Only declared predecessor outputs are supplied. `{input}` refers to root input and `{step_id}` to a declared predecessor; substitution occurs once. The identifier `input` is reserved. Upstream output is evidence, not an authorization grant. A child input contract must describe this envelope, if supplied.
 
-Subagents resolve real manifests and pinned identities recursively; the runtime compiles their tools and contracts. A name and persona alone are never treated as a resolved capability. Unsupported skill references and speculative swarm patterns are rejected rather than silently ignored.
+Subagents resolve real manifests and pinned identities recursively; the runtime compiles their tools and contracts. A name and persona alone are never treated as a resolved capability. Unsupported skill references and coordination patterns are rejected.
 
 ## Persistence and evidence
 
@@ -36,6 +36,8 @@ Checkpointed agent sessions record an immutable manifest digest and snapshot, mo
 
 Receipts identify actual runtime package versions, model, release and policy digests, status, contract outcome and available usage. Prompts, outputs and credentials are not copied into receipts. Receipts are local operational records, not signed third-party proof; host administrators can modify local storage.
 
+Execution responses use `output` for the returned answer. Agent responses also expose `structured_output` when an output contract is declared. `output_valid` reports structural validation, `execution_success` reports successful execution, and `task_assessment` remains `unverified`. These fields do not assert factual correctness or fulfillment of business goals.
+
 ## Bounds
 
-The driver caps model calls/output tokens, graph recursion and wall-clock duration. Monetary budgeting requires operator-supplied input/output prices and output limits; admission reserves a conservative estimate before a call. Provider billing/tokenization can differ, so this is not a financial hard cap. Call/output limits and provider-side billing limits remain the stronger spend controls. JIT authoring has bounded attempts and explicitly declared tool-free scope.
+The driver caps model calls/output tokens, graph recursion and wall-clock duration. Delegated agents have task-scoped state; they do not create independently resumable conversation checkpoints. Delegated execution uses the tighter parent/child step limit. Monetary budgeting requires operator-supplied input/output prices and output limits; admission reserves a conservative estimate before a call. Provider billing/tokenization can differ, so this is not a financial hard cap. Call/output limits and provider-side billing limits remain the stronger spend controls. JIT authoring has bounded attempts and explicitly declared tool-free scope.

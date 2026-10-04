@@ -9,7 +9,7 @@ from aero.services.runner import AeroAgentRunnerService
 pytestmark = pytest.mark.usefixtures("offline_runtime")
 
 MANIFEST_TEXT = """{
-  "manifest_version": "0.1.0",
+  "manifest_version": "1.0.0",
   "identity": { "id": "test-replay-agent", "name": "Replay Agent", "version": "1.0.0" },
   "capabilities": { "domain": "Testing", "tags": ["test"], "short_description": "Replay test", "evaluation_trigger": "Test" },
   "cognitive_runtime": { "persona": "Tester", "success_criteria": "Done" },

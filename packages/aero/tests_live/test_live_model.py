@@ -14,7 +14,7 @@ from aero.infrastructure.parser import ManifestParser
 from aero.services.deepagents_runner import DeepAgentsExecutionDriver
 
 MANIFEST = {
-    "manifest_version": "0.2.0",
+    "manifest_version": "1.0.0",
     "identity": {"id": "live-echo", "name": "Live Echo", "version": "1.0.0"},
     "capabilities": {
         "domain": "General",
@@ -53,7 +53,7 @@ def test_live_deepseek_echo():
     finally:
         driver.close()
 
-    output = str(result.get("verified_result") or "").upper()
+    output = str(result.get("output") or "").upper()
     assert output.strip() == "PONG"
     assert result["execution_success"] is True
     assert result["success_criteria_met"] is None

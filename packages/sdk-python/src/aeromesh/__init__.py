@@ -1,5 +1,7 @@
 """Thin SDK over the same verified execution paths as the CLI."""
 
+__version__ = "1.0.0"
+
 from pathlib import Path
 from typing import Any, Dict, Optional
 

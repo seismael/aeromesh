@@ -97,7 +97,7 @@ def test_production_adapter_discovers_and_invokes_real_mcp_tool(tmp_path, monkey
     monkeypatch.setenv("AEROMESH_HOME", str(tmp_path / "home"))
     manifest = ManifestParser().validate_dict(
         {
-            "manifest_version": "0.2.0",
+            "manifest_version": "1.0.0",
             "identity": {
                 "id": "system-inventory",
                 "name": "System inventory",

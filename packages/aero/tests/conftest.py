@@ -67,7 +67,9 @@ def mock_mcp_tools(monkeypatch):
 def _isolated_key_storage(monkeypatch):
     """Exercise real credential/encryption code without touching the OS keyring."""
     import keyring
+    from aero.infrastructure import credential_store
 
+    monkeypatch.setattr(credential_store, "_load_os_backend", lambda: keyring)
     secrets = {}
     monkeypatch.setattr(
         keyring, "get_password", lambda service, key: secrets.get((service, key))

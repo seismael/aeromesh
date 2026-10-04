@@ -1,22 +1,22 @@
 # Security
 
-Report suspected vulnerabilities privately to firas.ismael@gmail.com; do not publish credentials or exploit against third-party deployments.
+Report suspected vulnerabilities privately to firas.ismael@gmail.com. Include the affected version, reproducible steps and the security boundary involved. Do not publish credentials or test against third-party deployments without authorization.
 
-## Supported boundary in 0.2
+## V1 supported boundary
 
-Trusted execution verifies exact manifest/release contents and explicit local signer approval. Production tool/credential capabilities additionally require an independently approved release policy. Recursive dependencies are embedded/pinned; arbitrary ID paths and unsupported features are rejected. Signing proves integrity and key possession, not code safety or author reputation.
+AeroMesh 1.x verifies exact manifest and release contents against explicitly approved local signer keys. Production tool and credential capabilities additionally require an independently approved release policy. Recursive dependencies are embedded and content-pinned; artifact identity mismatches, path escapes and unsupported capabilities fail before execution. A signature establishes content integrity and key possession. Operators remain responsible for reviewing publisher identity, agent instructions and tool code.
 
-Trusted MCP runs in reviewed, preloaded digest-pinned Linux containers with network disabled, no host mounts, read-only rootfs, nonroot identity, dropped capabilities and resource limits. Container images can still be malicious within their granted scope; the host OS, Docker daemon and approved runtime dependencies are trusted. The model provider receives the inputs/tool outputs passed to it and is outside the tool network namespace.
+Trusted MCP tools run in reviewed, preloaded, digest-pinned Linux containers whose images declare no volumes, with network disabled, no host mounts, read-only root filesystems, non-root identity, dropped capabilities and resource limits. The host OS, Docker engine and approved runtime dependencies form part of the trusted deployment. A malicious image can still manipulate its allowed inputs and outputs. The model provider receives the task data and tool outputs sent to it, outside the tool container network namespace.
 
-Per-tool credential bindings deliver only explicitly approved secrets. Runtime code does not copy the parent environment into each tool. Secure OS keyring failures never silently downgrade signing-key or tool-credential storage to plaintext. Model authentication is separate caller configuration and is not granted to tools automatically.
+Per-tool credential bindings deliver only explicitly approved secrets. The parent environment is not copied wholesale into tools. Stored signing material and tool credentials use encryption backed by supported native OS keyrings: Windows Credential Locker, macOS Keychain, Secret Service/libsecret or KWallet. Arbitrary plugins and plaintext backends are rejected; missing or inaccessible secure storage causes failure. Explicit environment credentials are resolved without requiring secret storage. Signing encryption keys are scoped to the state directory and protected against concurrent initialization. Model-provider authentication is separate caller configuration and is not automatically granted to tools.
 
-## Explicit exclusions
+## Scope and limitations
 
-- Development mode is not a sandbox. Host commands and remote endpoints have the caller's authority. Its optional HTTP utility does not contain malicious processes.
-- Networked production tools, production remote MCP, arbitrary skills/plugins and unsupported policy declarations are rejected.
-- Same-user/root compromise, kernel/container-runtime escapes, hostile Python code embedded in the caller and arbitrary model behavior are outside this boundary.
-- JSON Schema validates shape, not truth or completion. Task assessment remains unverified.
-- Receipts are mutable local evidence, not independent notarization. Native checkpoints retain conversation data unless ephemeral behavior is selected.
-- Revocation is checked at new execution/resume boundaries; it does not terminate already running processes. Workflow actions are not transactional or exactly-once.
+- Development mode permits host commands and remote endpoints with the caller's authority. Its optional HTTP utility is not process containment.
+- Production networked tools, remote MCP, arbitrary skills/plugins and unsupported policy declarations are rejected.
+- Same-user/root compromise, kernel/container-runtime escapes and hostile Python callers are outside this boundary. Python SDK callers have their host process's authority.
+- JSON Schema validates structure. The model's factual accuracy and task success require independent workload evaluation.
+- Receipts are local records that the deployment administrator can modify. Native checkpoints can retain conversation data; ephemeral execution avoids durable conversation checkpoints.
+- Revocation is checked at new execution and resume boundaries. It does not terminate running processes. Workflow effects have no transactional rollback or exactly-once guarantee.
 
-See [operations](docs/OPERATIONS.md) for key management, retention and recovery and [validation](docs/VALIDATION.md) for exercised checks. Only the current supported 0.2 code line receives security fixes; legacy 0.1 behavior should not be used as a security boundary.
+Protect application code, trust roots, policy files, credentials and local state with the deployment's OS controls. Review [operations](docs/OPERATIONS.md) for key management, retention and recovery, and [validation](docs/VALIDATION.md) for exercised checks. Security fixes target the supported AeroMesh 1.x release line.

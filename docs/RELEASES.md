@@ -55,11 +55,11 @@ source files. Configure the desired model and provider credentials separately
 before execution; `amx doctor` reports model configuration availability. Model
 calls require the configured provider and are billed independently.
 
-For a new version, create a new release file and review its permission and
-content changes before signing and approving it:
+When changing an agent configuration, build a candidate release and review its
+permission and content changes before signing and approving it:
 
 ```sh
-amx release diff ./old.release.json ./new.release.json
+amx release diff ./current.release.json ./candidate.release.json
 ```
 
 The diff reports image, tool, credential, and environment-binding additions and
@@ -79,6 +79,8 @@ admission path.
 
 Production release v1 supports stdio MCP tools in **locally available,
 digest-pinned Linux containers with no network and no host filesystem mounts**.
+Images must declare no Docker volumes; writable scratch space is confined to
+the runtime's bounded temporary directory.
 Remote SSE/HTTP servers, host commands, mutable image tags, network allowances,
 skill paths, and unsupported provider types are rejected. The image entrypoint
 is used; `args` supplies its arguments. An operator must provision the reviewed
@@ -165,7 +167,7 @@ manifest signing; pretty-printing does not change content identity.
 
 The model selection, Python environment, and model-provider service are not
 embedded executable dependencies of this release format. Use the repository's
-locked runtime deployment alongside it and retain model configuration with
+constrained runtime dependency set alongside it and retain model configuration with
 operational records. A model alias may change at its provider. Identical
 manifests do not promise identical model output.
 

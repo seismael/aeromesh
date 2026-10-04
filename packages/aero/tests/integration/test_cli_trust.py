@@ -9,8 +9,8 @@ from aero.services import trust
 
 def _write_manifest(path, agent_id="demo-agent"):
     data = {
-        "manifest_version": "0.1.0",
-        "identity": {"id": agent_id, "name": "Demo", "version": "0.1.0"},
+        "manifest_version": "1.0.0",
+        "identity": {"id": agent_id, "name": "Demo", "version": "1.0.0"},
         "capabilities": {
             "domain": "Demo",
             "tags": ["demo"],

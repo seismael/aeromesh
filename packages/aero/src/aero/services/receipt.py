@@ -80,7 +80,9 @@ def make_receipt(
         "model": model or result.get("model"),
         "usage": usage,
         "usage_reported": bool(usage),
-        "execution_success": result.get("execution_success", False),
+        "execution_success": status == "completed"
+        and error is None
+        and result.get("execution_success") is True,
         "usage_complete": source.get("usage_complete")
         if isinstance(source, dict)
         else None,

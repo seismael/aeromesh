@@ -9,8 +9,8 @@ from aero.infrastructure.parser import ManifestParser
 from aero.services.orchestrator import AeroMasterOrchestrator
 
 RAW = {
-    "manifest_version": "0.1.0",
-    "identity": {"id": "jit-test", "name": "JIT Test", "version": "0.1.0"},
+    "manifest_version": "1.0.0",
+    "identity": {"id": "jit-test", "name": "JIT Test", "version": "1.0.0"},
     "capabilities": {
         "domain": "test",
         "tags": [],

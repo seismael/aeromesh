@@ -8,7 +8,7 @@ from aero.domain.errors import AeroMeshDomainError
 
 def data():
     return {
-        "manifest_version": "0.2.0",
+        "manifest_version": "1.0.0",
         "identity": {"id": "preflight", "name": "Preflight", "version": "1.0.0"},
         "capabilities": {
             "domain": "test",

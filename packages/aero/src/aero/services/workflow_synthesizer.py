@@ -14,8 +14,8 @@ from aero.services.synthesizer import extract_json, persist_draft
 SYSTEM_PROMPT = (
     "You are a workflow designer for AeroMesh. Given a user goal and a catalog of "
     "available verified agents, output ONLY a valid JSON object conforming to the "
-    "AeroMesh DWM v0.1 workflow schema with fields: "
-    'workflow_version ("0.1.0"), identity{id,name,version,description}, '
+    "AeroMesh DWM v1 workflow schema with fields: "
+    'workflow_version ("1.0.0"), identity{id,name,version,description}, '
     "steps[{id,agent_id,intent,depends_on}], output. "
     "Rules: (1) choose agent_id values ONLY from the provided catalog; "
     "(2) identity.id must be a lowercase kebab-case slug; "
@@ -27,7 +27,7 @@ SYSTEM_PROMPT = (
 
 
 class WorkflowSynthesizer:
-    """Synthesizes a DWM v0.1 workflow for a goal using a real LLM, grounded on the
+    """Synthesizes a DWM v1 workflow for a goal using a real LLM, grounded on the
     available agent catalog. There is no template fallback: without a live provider
     key, synthesis raises a clear error.
     """

@@ -9,7 +9,7 @@ from aero.presentation.cli import main
 from aero.services import trust
 
 SAMPLE_MANIFEST = {
-    "manifest_version": "0.2.0",
+    "manifest_version": "1.0.0",
     "identity": {
         "id": "shared-test-agent",
         "name": "Shared Test Agent",

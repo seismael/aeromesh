@@ -1,60 +1,71 @@
 # AeroMesh
 
-**Review, approve, and run a specific agent release on LangChain Deep Agents.**
+**Approve a specific agent release. Enforce its tool permissions. Record what ran.**
 
-AeroMesh 0.2 packages agent and workflow manifests into a signed dependency closure, applies an independent operator policy, and records what ran. It uses Deep Agents for agent execution and LangGraph for workflow scheduling. It is a configuration and governance layer, not a new intelligence model or a cross-framework industry standard.
+AeroMesh 1.0.0 packages agents and workflows into signed releases with their complete agent dependency graph. Operators review the exact manifests, tool images and credential bindings, approve an independent policy, and run that release through LangChain Deep Agents and LangGraph.
 
-## What it guarantees within its supported boundary
+Use AeroMesh when agent configuration must be reviewed, distributed and executed under explicit permissions. Its value is connecting artifact integrity, operator approval, execution controls and local evidence in one repeatable workflow.
 
-- **Identity and integrity:** explicit local signer approval, Ed25519 verification and revocation checks at execution/resume. Repository keys never grant implicit trust.
-- **Closed releases:** embedded agent manifests, recursive SHA-256 reference pins, digest-pinned MCP images, and capability changes visible through release diffs.
-- **Independent permissions:** tools, image identity and credential bindings must match an operator policy. Changing the policy requires reapproval. Tool/credential execution requires an approved release.
-- **Contained local tools:** trusted stdio MCP servers run in preloaded Linux containers with no network, no host mounts, read-only root filesystem, non-root identity, dropped capabilities and resource limits. Docker itself and the host OS remain trusted.
-- **Correct execution contracts:** deterministic JSON Schema input/output checks, all-predecessor workflow barriers, per-run conversation identities, failed-step propagation and bounded execution.
-- **Operational evidence:** local receipts bind the release, policy and runtime versions to execution status and usage. They do not include prompts, outputs or credentials, and are not a tamper-proof audit ledger.
+## The v1 execution contract
 
-**Output shape validation does not prove factual accuracy or business success.** Results explicitly mark task assessment as unverified. Native checkpoints can contain conversation data; use ephemeral mode when persistence is unwanted.
+| Capability | Enforced behavior |
+|---|---|
+| Artifact identity | Ed25519 signatures, explicitly trusted local signer keys, content verification and revocation checks at execution and resume |
+| Complete agent releases | Embedded recursive agent dependencies, SHA-256 reference pins and exact MCP container image digests |
+| Operator approval | Independent policy grants bind tool names, image identity and credential mappings; policy changes require reapproval |
+| Tool containment | Preloaded Linux images without declared volumes; no network or host mounts, read-only root filesystem, non-root identity and resource limits |
+| Input and output contracts | Deterministic JSON Schema validation; execution status and structural validity remain separate from task correctness |
+| Workflow correctness | All-predecessor barriers, explicit dependency context, isolated run identities and failure propagation |
+| Operational evidence | Local records of release, policy, runtime versions, status and available usage, excluding task text and credential values |
 
-Networked production tool containers, remote production MCP endpoints, unsigned production artifacts, arbitrary host commands, standalone skill references and unsupported manifest policies fail closed. Host/remote tool experiments require an explicit `--development` mode, which is not a security boundary.
+The host, Docker engine and runtime dependencies are part of the trusted deployment. Model-provider calls occur outside tool containers and receive the task data sent to the model. Output validation establishes structure; domain-specific evaluation establishes whether the result is correct. Native checkpoints may contain conversation data.
 
-## Install
+V1 accepts production tools only through approved releases and the container boundary above. Networked production tool containers, remote production MCP, arbitrary host commands, unsigned production artifacts and unsupported manifest capabilities are rejected. Explicit development mode supports local experimentation with the caller's authority.
 
-Python 3.11–3.13 is tested by CI. Use a virtual environment:
+## Install from source
+
+Python 3.11–3.13 is covered by CI. Run these commands from a reviewed checkout:
 
 ```bash
+git clone https://github.com/seismael/aeromesh.git
+cd aeromesh
 python -m venv .venv
 # Activate .venv using the command for your shell.
-python -m pip install -c constraints/ci-python.txt -e 'packages/aero[dev]' -e packages/sdk-python
+python -m pip install -c constraints/ci-python.txt build hatchling editables
+python -m build --no-isolation --outdir dist packages/aero
+python -m build --no-isolation --outdir dist packages/sdk-python
+python -m pip install -c constraints/ci-python.txt dist/aero-1.0.0-py3-none-any.whl dist/aeromesh_sdk-1.0.0-py3-none-any.whl
+amx version
 amx doctor
 ```
 
-For distribution, build the packages and install the generated wheels. Wheels include the schemas and work outside this checkout. See [operations](docs/OPERATIONS.md).
+These commands build and install the local distributions and do not depend on packages being published to PyPI. Wheels include their runtime schemas. Use an isolated environment and retain the reviewed source revision, constraint file and wheels for deployment. See [installation and operations](docs/OPERATIONS.md).
 
-Signing requires a usable secure OS keyring. On headless machines, provision an appropriate keyring backend or sign on an authorized workstation and distribute the public key. AeroMesh does not silently store plaintext signing secrets or tool credentials.
+Signing and stored tool credentials require a supported native OS keyring: Windows Credential Locker, macOS Keychain, Secret Service/libsecret or KWallet. On headless hosts, provision one for the execution account or sign on an authorized workstation. Arbitrary keyring plugins and plaintext backends are rejected; inaccessible secure storage fails clearly. Explicit environment credentials do not require stored secrets.
 
-## First local evaluation
+## First approved release
 
-Choose an actual model available to your account and set its provider credential. For example:
+The included tool-free workflow summarizes and reviews supplied text. Configure a real model available to your account before executing it:
 
 ```bash
 export AEROMESH_MODEL='openai:YOUR_MODEL_ID'
-# Set OPENAI_API_KEY securely in your execution environment.
-amx run registry/agents/structured-summary.json 'Summarize this supplied text...' --development
+# Set OPENAI_API_KEY securely in this environment.
 ```
 
-PowerShell uses `$env:AEROMESH_MODEL = 'openai:YOUR_MODEL_ID'`. A paid provider call occurs only when running the model. No provider credential is included in this repository.
+PowerShell uses `$env:AEROMESH_MODEL = 'openai:YOUR_MODEL_ID'`. Model execution incurs the selected provider's normal charges. Build, validation, signing and approval make no model calls.
 
-The [catalog](registry/README.md) contains unsigned, tool-free drafts. They illustrate the interface; they are not independently certified agents.
-
-## Approve and run a release
-
-The following tool-free example exercises the complete release path. `keygen` prints the public-key path; substitute that path below.
+Review the two referenced [agent drafts](registry/agents) and the [workflow](registry/workflows/summary-review.json), then create a release:
 
 ```bash
 amx release build registry/workflows/summary-review.json --output summary.release.json
 amx validate summary.release.json
 amx keygen --name team
 amx sign summary.release.json --key team
+```
+
+`keygen` prints the public-key path. Verify a publisher's key through an independent trusted channel, then substitute that path below. Even a locally signed release needs explicit signer trust and an independent operator policy:
+
+```bash
 amx trust summary-review /path/printed/by/keygen/team.pub
 amx release approve summary.release.json --policy examples/tool-free-policy.json
 amx preflight summary.release.json
@@ -62,58 +73,55 @@ amx release run summary.release.json 'Text to summarize and review' --json
 amx history
 ```
 
-Review the release and verify a publisher's key through an independent trusted channel before importing it. Signing proves key possession and integrity, not harmlessness. Approval requires a separate policy even if you signed the release yourself. Approving permissions once allows subsequent in-scope runs without per-tool human prompts; each run still verifies current trust and policy.
+Approval prints the release digest, which can also be passed to `amx release run`. Subsequent runs recheck current trust, dependency integrity and the active policy without routine per-tool approval prompts. Signing identifies a key and protects contents; review the instructions and tool code before approving them.
 
-Use `amx release diff old.release.json new.release.json` before approving an update. Revoke a signing key with `amx revoke summary-review`; revocation applies to that key's fingerprint and blocks future verification, including other locally trusted identities using it. No running process is remotely terminated by revocation.
+Compare candidate releases with `amx release diff current.release.json candidate.release.json`. Revoke a signer with `amx revoke summary-review`; the fingerprint is rejected at subsequent verification boundaries, including other locally trusted IDs using that key. Revocation does not terminate already running work.
 
-See [release and policy format](docs/RELEASES.md) for exact tool-image and credential grants. A Docker image must be acquired/reviewed separately and already exist locally by digest; agent execution never pulls tool code.
+See [releases and policy](docs/RELEASES.md) for the complete approval lifecycle and exact tool-image and credential grants. Production tool images must already be available locally by digest; execution never pulls tool code.
 
-## Real tool integration example
+## Authoring and real tool evaluation
 
-[Dependency inventory](examples/dependency-inventory/README.md) runs an actual stdio MCP server and parses supplied dependency metadata without an LLM or external API. Its transport smoke test is:
+Create a draft with `amx init my-agent` and validate it with `amx validate my-agent.agent.json`. The [catalog](registry/README.md) contains unsigned tool-free examples. For explicit local authoring:
+
+```bash
+amx run registry/agents/structured-summary.json 'Summarize this supplied text' --development
+```
+
+[Dependency inventory](examples/dependency-inventory/README.md) implements an actual stdio MCP server that parses dependency metadata. Its offline smoke test verifies the real tool transport without a model account:
 
 ```bash
 python examples/dependency-inventory/smoke.py
 ```
 
-The optional agent demo uses a real configured model in explicit development mode. Inventory is not a vulnerability scan or a claim that dependencies are safe.
+The optional agent demo calls a configured model in development mode. Inventory describes dependencies; it does not assess vulnerabilities or dependency safety.
 
 ## Interface essentials
 
 | Task | Command |
 |---|---|
-| Author a draft | `amx init my-agent` |
-| Validate supported semantics | `amx validate my-agent.agent.json` |
-| Check local prerequisites | `amx doctor` / `amx preflight PATH` |
-| Discover actual MCP tools | `amx preflight PATH --probe-tools` |
-| Sign / independently approve signer | `amx sign PATH` / `amx trust ID PUBLIC_KEY` |
-| Verify trust | `amx verify PATH` |
-| Check integrity only | `amx verify PATH --signature-only` |
-| Install a trusted tool-free agent | `amx install PATH_OR_ID` |
-| Execute a trusted tool-free agent | `amx run PATH_OR_ID 'task'` |
-| Execute approved capabilities | `amx release run PATH_OR_DIGEST 'task'` |
-| Supply structured task input | Add `--input-json` with a JSON positional input |
-| Explicitly synthesize a tool-free draft | `amx run 'goal' --synthesize --development` |
-| Resume a checkpointed session | `amx run PATH --replay SESSION_ID 'follow-up'` |
-| Inspect local sessions | `amx history` |
-| Store a tool secret without putting it in shell arguments | `amx vault set CREDENTIAL_ID` |
-| Lint a manifest | `amx lint PATH` (heuristics, not certification) |
+| Check installation and configuration | `amx doctor` / `amx preflight PATH` |
+| Start tools and check their exposed interface | `amx preflight PATH --probe-tools` |
+| Verify a trusted signature | `amx verify PATH` |
+| Check cryptographic integrity only | `amx verify PATH --signature-only` |
+| Install a signed tool-free agent | `amx install PATH_OR_ID` |
+| Run a signed tool-free agent | `amx run PATH_OR_ID 'task'` |
+| Run an approved release | `amx release run PATH_OR_DIGEST 'task'` |
+| Supply structured task input | Add `--input-json` with JSON positional input |
+| Create a model-authored tool-free draft | `amx run 'goal' --synthesize --development` |
+| Resume a checkpointed agent session | `amx run PATH 'follow-up' --replay SESSION_ID` |
+| Store a tool secret using a hidden prompt | `amx vault set CREDENTIAL_ID` |
+| Inspect manifest heuristics | `amx lint PATH` |
 
-A missing path never triggers automatic synthesis. New drafts are persisted for review; synthesis does not create missing tool capabilities or grant permissions. An ephemeral session cannot be resumed. Workflow repetitions are new runs and can repeat external effects; there is no implicit workflow resume or exactly-once side-effect guarantee.
+Synthesis persists drafts for review and requires explicit opt-in. Ephemeral agent sessions cannot be resumed. Each workflow invocation is a new run; already completed effects are not rolled back or guaranteed exactly once.
 
-## Validation and limits
+The [Python SDK](packages/sdk-python/README.md) uses the same checked execution services as the CLI.
 
-```bash
-python -m pytest packages/aero/tests -q
-python -m pytest packages/aero/tests_system -m 'not docker' -q
-python -m build --outdir dist packages/aero
-python -m build --outdir dist packages/sdk-python
-```
+## Release qualification
 
-CI runs unit/integration regressions, real local MCP, clean wheel installations, and mandatory Docker isolation tests. Paid provider checks are explicit manual jobs and are separate from offline acceptance. See [validation](docs/VALIDATION.md) for the exact coverage and what remains deployment-specific.
+CI covers Python 3.11–3.13, trust and policy rejection cases, workflow scheduling, real local MCP, clean source/wheel installation and real Docker isolation. The [v1 acceptance matrix](docs/VALIDATION.md) maps each supported claim to its verification gate. Paid provider checks are explicit manual jobs, with deployment-specific model and task qualification recorded separately.
 
-AeroMesh does not promise better model reasoning, cross-provider behavioral equivalence, lower token usage, malicious-kernel resistance, or safe autonomous financial/administrative actions. Its value is reviewable configuration, approved permissions, reproducible software references and evidence of execution. Measure that value against native Deep Agents configuration before adopting another layer.
+AeroMesh's operational records are local and mutable by the deployment administrator. Select appropriate retention, host protection and independent record export for your environment. Measure task quality and operating cost with your intended model, approved tools and representative workloads before production use.
 
-[Architecture](docs/ARCHITECTURE.md) · [Operations](docs/OPERATIONS.md) · [Migration](docs/MIGRATION.md) · [Security](SECURITY.md) · [Contributing](CONTRIBUTING.md)
+[Architecture](docs/ARCHITECTURE.md) · [Release format](docs/RELEASES.md) · [Operations](docs/OPERATIONS.md) · [Validation](docs/VALIDATION.md) · [Publishing](docs/PUBLISHING.md) · [Security](SECURITY.md) · [Contributing](CONTRIBUTING.md)
 
 Apache-2.0.

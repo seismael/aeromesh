@@ -1,7 +1,8 @@
-"""DAM v0.1 JSON Schema Validator Infrastructure Adapter."""
+"""DAM v1 JSON Schema Validator Infrastructure Adapter."""
 
 import os
 import json
+import math
 import re
 import jsonschema
 from collections import deque
@@ -54,22 +55,35 @@ def _unique_object(pairs):
     return result
 
 
-def strict_json(raw: str) -> Dict[str, Any]:
+def _finite_float(value: str) -> float:
+    number = float(value)
+    if not math.isfinite(number):
+        raise ValueError("Non-finite JSON number")
+    return number
+
+
+def strict_json_value(raw: str) -> Any:
+    """Decode bounded JSON without duplicate keys or non-finite numbers."""
     if len(raw.encode("utf-8")) > MAX_MANIFEST_BYTES:
-        raise _violation("Manifest exceeds the 2 MiB limit")
+        raise _violation("JSON exceeds the 2 MiB limit")
     try:
-        data = json.loads(
+        return json.loads(
             raw,
             object_pairs_hook=_unique_object,
+            parse_float=_finite_float,
             parse_constant=lambda value: (_ for _ in ()).throw(
                 ValueError("Non-finite JSON number")
             ),
         )
-        if not isinstance(data, dict):
-            raise ValueError("Manifest must be a JSON object")
-        return data
     except (ValueError, RecursionError) as exc:
         raise _violation(f"Invalid JSON: {exc}") from exc
+
+
+def strict_json(raw: str) -> Dict[str, Any]:
+    data = strict_json_value(raw)
+    if not isinstance(data, dict):
+        raise _violation("Manifest must be a JSON object")
+    return data
 
 
 def _read_manifest(path: str) -> str:
@@ -131,13 +145,15 @@ def validate_contract_definition(contract: Dict[str, Any]) -> None:
     try:
         jsonschema.Draft7Validator.check_schema(contract)
         pending = [contract]
-        visited = 0
+        visited = set()
         resolved = {}
         reference_edges = {}
         while pending:
             current = pending.pop()
-            visited += 1
-            if visited > 10000:
+            if id(current) in visited:
+                continue
+            visited.add(id(current))
+            if len(visited) > 10000:
                 raise ValueError("Contract is too complex")
             if isinstance(current, dict):
                 for key, value in current.items():
@@ -147,6 +163,7 @@ def validate_contract_definition(contract: Dict[str, Any]) -> None:
                         if value not in resolved:
                             resolved[value] = _resolve_contract_pointer(contract, value)
                         reference_edges[id(current)] = id(resolved[value])
+                        pending.append(resolved[value])
                     if key in {
                         "$id",
                         "$dynamicRef",
@@ -161,9 +178,26 @@ def validate_contract_definition(contract: Dict[str, Any]) -> None:
                         "https://json-schema.org/draft-07/schema",
                     }:
                         raise ValueError("Only Draft 7 contracts are supported")
-                    pending.append(value)
-            elif isinstance(current, list):
-                pending.extend(current)
+                # Traverse schema-bearing locations only. Property names and
+                # values under enum/const/default/examples are ordinary data,
+                # even when their keys happen to be "$ref" or "$id".
+                for key in ("definitions", "properties", "patternProperties"):
+                    pending.extend(current.get(key, {}).values())
+                for key in (
+                    "additionalProperties", "additionalItems", "contains",
+                    "propertyNames", "not", "if", "then", "else",
+                ):
+                    if key in current:
+                        pending.append(current[key])
+                for key in ("allOf", "anyOf", "oneOf"):
+                    pending.extend(current.get(key, []))
+                items = current.get("items", [])
+                pending.extend(items if isinstance(items, list) else [items])
+                pending.extend(
+                    dependency
+                    for dependency in current.get("dependencies", {}).values()
+                    if isinstance(dependency, (dict, bool))
+                )
         # Draft 7 ignores $ref siblings. A direct reference-only loop cannot
         # consume an instance. Structural recursion through properties/items is
         # intentionally allowed, and jsonschema handles its instance traversal.
@@ -197,7 +231,7 @@ def _validate_schema(data, schema, label):
 
 
 class ManifestParser:
-    """Parses raw manifest text or dict and validates against DAM v0.1 JSON Schema."""
+    """Parses raw manifest text or dict and validates against DAM v1 JSON Schema."""
 
     def __init__(self, schema_path: str = SCHEMA_PATH):
         self.schema_path = schema_path
@@ -248,7 +282,7 @@ class ManifestParser:
             name=identity_data["name"],
             version=identity_data["version"],
             author=identity_data.get("author"),
-            license=identity_data.get("license", "MIT"),
+            license=identity_data.get("license"),
             funding=identity_data.get("funding"),
         )
 
@@ -285,8 +319,6 @@ class ManifestParser:
                     allowed_domains=prov_data.get("allowed_domains", []),
                     uri=prov_data.get("uri"),
                     required_tools=prov_data.get("required_tools", []),
-                    fallback_action=prov_data.get("fallback_action"),
-                    isolation=prov_data.get("isolation"),
                     agent_id=prov_data.get("agent_id"),
                     delegation_purpose=prov_data.get("delegation_purpose"),
                     image=prov_data.get("image"),
@@ -300,15 +332,12 @@ class ManifestParser:
             st = data["swarm_topology"]
             swarm_topology = SwarmTopology(
                 pattern=st.get("pattern", "hierarchical"),
-                consensus_threshold=st.get("consensus_threshold"),
-                routing_key=st.get("routing_key"),
             )
 
         observability = None
         if "observability" in data:
             obs = data["observability"]
             observability = ObservabilityProfile(
-                trace_level=obs.get("trace_level", "info"),
                 cost_limit_usd=obs.get("cost_limit_usd"),
                 max_execution_steps=obs.get("max_execution_steps"),
                 max_model_calls=obs.get("max_model_calls"),
@@ -329,7 +358,7 @@ class ManifestParser:
 
 
 class WorkflowParser:
-    """Parses a DWM v0.1 workflow manifest and validates against its schema."""
+    """Parses a DWM v1 workflow manifest and validates against its schema."""
 
     def __init__(self, schema_path: str = WORKFLOW_SCHEMA_PATH):
         self.schema_path = schema_path
@@ -362,7 +391,7 @@ class WorkflowParser:
             name=identity_data["name"],
             version=identity_data["version"],
             author=identity_data.get("author"),
-            license=identity_data.get("license", "MIT"),
+            license=identity_data.get("license"),
             description=identity_data.get("description"),
         )
 

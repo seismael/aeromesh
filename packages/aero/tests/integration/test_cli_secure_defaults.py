@@ -9,7 +9,7 @@ from aero.services import trust
 
 def manifest(tmp_path, name="cli-demo"):
     data = {
-        "manifest_version": "0.2.0",
+        "manifest_version": "1.0.0",
         "identity": {"id": name, "name": "Demo", "version": "1.0.0"},
         "capabilities": {
             "domain": "test",
@@ -67,5 +67,5 @@ def test_keygen_and_init_never_overwrite(tmp_path, monkeypatch):
 def test_doctor_is_machine_readable_and_no_model_call(capsys):
     assert main(["doctor"]) == 0
     result = json.loads(capsys.readouterr().out)
-    assert result["version"] == "0.2.0"
+    assert result["version"] == "1.0.0"
     assert "provider_credentials" not in result

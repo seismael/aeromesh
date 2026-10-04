@@ -11,7 +11,7 @@ from aero.services.session import SessionRegistry
 @pytest.fixture
 def manifest_file(tmp_path):
     raw = {
-        "manifest_version": "0.1.0",
+        "manifest_version": "1.0.0",
         "identity": {"id": "worker", "name": "Worker", "version": "1.0.0"},
         "capabilities": {
             "domain": "test",
@@ -42,7 +42,7 @@ def fake_driver(monkeypatch, fail=False):
             if fail:
                 raise RuntimeError("SECRET in provider failure")
             return {
-                "verified_result": "SECRET answer",
+                "output": "SECRET answer",
                 "execution_success": True,
                 "token_usage": {"input_tokens": 1},
             }
@@ -79,6 +79,25 @@ def test_failure_is_recorded_without_exception_message(monkeypatch, manifest_fil
     assert registry.list()[0]["status"] == "failed"
     assert registry.receipts()[0]["error_type"] == "RuntimeError"
     assert "SECRET" not in json.dumps(registry.receipts())
+
+
+def test_failed_cleanup_marks_successful_model_run_failed(monkeypatch, manifest_file):
+    fake_driver(monkeypatch)
+
+    def broken_close(self):
+        raise RuntimeError("SECRET cleanup detail")
+
+    monkeypatch.setattr(runner_module.DeepAgentsExecutionDriver, "close", broken_close)
+    with pytest.raises(RuntimeError, match="cleanup"):
+        AeroAgentRunnerService().run_manifest_file(
+            str(manifest_file), "task", development=True
+        )
+    registry = SessionRegistry()
+    assert registry.list()[0]["status"] == "failed"
+    receipt = registry.receipts()[0]
+    assert receipt["status"] == "failed"
+    assert receipt["execution_success"] is False
+    assert "SECRET" not in json.dumps(receipt)
 
 
 def test_resume_refuses_manifest_drift(monkeypatch, manifest_file):
@@ -142,7 +161,7 @@ def test_concurrent_runs_do_not_share_credential_overrides(monkeypatch, manifest
         def execute(self, *args, **kwargs):
             return {
                 "execution_success": True,
-                "verified_result": self.credentials["TOKEN"],
+                "output": self.credentials["TOKEN"],
             }
 
         def close(self):
@@ -155,7 +174,7 @@ def test_concurrent_runs_do_not_share_credential_overrides(monkeypatch, manifest
     def run(token):
         return runner.run_manifest_file(
             str(manifest_file), "run", development=True, env_overrides={"TOKEN": token}
-        )["execution_result"]["verified_result"]
+        )["execution_result"]["output"]
 
     with ThreadPoolExecutor(max_workers=2) as executor:
         results = list(executor.map(run, ["first", "second"]))

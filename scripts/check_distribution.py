@@ -19,8 +19,8 @@ def main():
     assert Path(aero.__file__).resolve().is_relative_to(Path(sys.prefix).resolve()), (
         "Run this check using installed wheels in a clean virtualenv"
     )
-    assert metadata.version("aero") == "0.2.0"
-    assert metadata.version("aeromesh-sdk") == "0.2.0"
+    assert metadata.version("aero") == "1.0.0"
+    assert metadata.version("aeromesh-sdk") == "1.0.0"
     schema_resource = (
         resources.files("aero") / "schemas" / "declarative-agent.schema.json"
     )
@@ -32,12 +32,21 @@ def main():
         os.environ.pop("PYTHONPATH", None)
         from aero.infrastructure.parser import ManifestParser, WorkflowParser
         from aero import __version__
-        from aeromesh import AeroKernel
+        from aeromesh import AeroKernel, __version__ as sdk_version
 
         assert AeroKernel is not None
         assert __version__ == metadata.version("aero")
+        assert sdk_version == __version__ == metadata.version("aeromesh-sdk")
+        for distribution in ("aero", "aeromesh-sdk"):
+            installed = metadata.distribution(distribution)
+            licenses = installed.metadata.get_all("License-File")
+            assert licenses and "LICENSE" in licenses, f"{distribution} lacks license metadata"
+            files = installed.files or []
+            license_paths = [p for p in files if str(p).endswith(".dist-info/licenses/LICENSE")]
+            assert len(license_paths) == 1, f"{distribution} lacks its packaged license"
+            assert "Apache License" in installed.locate_file(license_paths[0]).read_text()
         manifest = {
-            "manifest_version": "0.2.0",
+            "manifest_version": "1.0.0",
             "identity": {
                 "id": "wheel-smoke",
                 "name": "Wheel smoke",
@@ -61,7 +70,7 @@ def main():
         assert parsed.identity.id == "wheel-smoke"
         WorkflowParser().validate_dict(
             {
-                "workflow_version": "0.2.0",
+                "workflow_version": "1.0.0",
                 "identity": {
                     "id": "wheel-flow",
                     "name": "Wheel flow",

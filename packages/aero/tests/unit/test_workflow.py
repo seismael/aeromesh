@@ -16,7 +16,7 @@ from aero.services import trust
 from aero.services.workflow_runner import WorkflowExecutionDriver, render_intent
 
 VALID = {
-    "workflow_version": "0.1.0",
+    "workflow_version": "1.0.0",
     "identity": {"id": "wf", "name": "W", "version": "1.0.0"},
     "steps": [
         {"id": "a", "agent_id": "agent-a", "intent": "x"},
@@ -26,7 +26,7 @@ VALID = {
 }
 
 AGENT = (
-    '{"manifest_version":"0.1.0",'
+    '{"manifest_version":"1.0.0",'
     '"identity":{"id":"%s","name":"%s","version":"1.0.0"},'
     '"capabilities":{"domain":"T","tags":["t"],"short_description":"d","evaluation_trigger":"e"},'
     '"cognitive_runtime":{"persona":"p","success_criteria":"s"},'
@@ -120,7 +120,7 @@ def test_workflow_execution_and_output_selection(tmp_path):
 
     workflow = WorkflowParser().validate_dict(
         {
-            "workflow_version": "0.1.0",
+            "workflow_version": "1.0.0",
             "identity": {"id": "test-wf", "name": "T", "version": "1.0.0"},
             "steps": [
                 {"id": "a", "agent_id": "agent-a", "intent": "first task"},
@@ -139,7 +139,7 @@ def test_workflow_execution_and_output_selection(tmp_path):
     result = driver.execute("root")
 
     assert set(result["outputs"].keys()) == {"a", "b"}
-    assert result["verified_result"] == result["outputs"]["b"]
+    assert result["output"] == result["outputs"]["b"]
     # Step b's intent was templated with step a's result before running.
     assert any(
         json.loads(c)["task"].startswith("use RESULT[")
@@ -155,7 +155,7 @@ def test_verify_workflow_references_rejects_untrusted_agent(tmp_path):
     _install_agent("agent-a")  # resolvable, but no trusted key in the workspace
     workflow = WorkflowParser().validate_dict(
         {
-            "workflow_version": "0.1.0",
+            "workflow_version": "1.0.0",
             "identity": {"id": "wf", "name": "W", "version": "1.0.0"},
             "steps": [{"id": "a", "agent_id": "agent-a", "intent": "x"}],
         }
@@ -168,7 +168,7 @@ def test_verify_workflow_references_rejects_untrusted_agent(tmp_path):
 def test_verify_workflow_references_rejects_missing_agent():
     workflow = WorkflowParser().validate_dict(
         {
-            "workflow_version": "0.1.0",
+            "workflow_version": "1.0.0",
             "identity": {"id": "wf", "name": "W", "version": "1.0.0"},
             "steps": [{"id": "a", "agent_id": "does-not-exist", "intent": "x"}],
         }

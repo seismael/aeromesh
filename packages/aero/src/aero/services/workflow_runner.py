@@ -226,7 +226,7 @@ class WorkflowExecutionDriver:
                     raise _failure(
                         f"Workflow step '{step.id}' failed; dependent steps were not executed."
                     )
-                return {"outputs": {step.id: str(result.get("verified_result") or "")}}
+                return {"outputs": {step.id: str(result.get("output") or "")}}
             except BaseException as exc:
                 error = exc
                 raise
@@ -324,7 +324,7 @@ class WorkflowExecutionDriver:
                 "workflow_id": self.workflow.identity.id,
                 "execution_id": execution_id,
                 "outputs": outputs,
-                "verified_result": outputs.get(self.workflow.output, outputs),
+                "output": outputs.get(self.workflow.output, outputs),
                 "execution_success": True,
                 "execution_completed": True,
                 "task_assessment": "unverified",

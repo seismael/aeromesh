@@ -6,7 +6,7 @@ pins. The MCP server uses the official Python MCP SDK over stdio. It does not
 download packages, query vulnerability databases, inspect installed software,
 resolve transitive dependencies, or assert that dependencies are safe.
 
-From the repository root, with AeroMesh installed:
+From the repository root, after the [AeroMesh v1 installation](../../README.md#install-from-source):
 
 ```bash
 python examples/dependency-inventory/smoke.py

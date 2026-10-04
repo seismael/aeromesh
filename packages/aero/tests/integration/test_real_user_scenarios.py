@@ -20,7 +20,7 @@ def write(path, data):
 @pytest.fixture
 def approved_summary(tmp_path, capsys):
     data = {
-        "manifest_version": "0.2.0",
+        "manifest_version": "1.0.0",
         "identity": {"id": "team-summary", "name": "Team summary", "version": "1.0.0"},
         "capabilities": {
             "domain": "Summarization",

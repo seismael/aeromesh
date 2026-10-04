@@ -1,7 +1,7 @@
 # Tested dependency snapshot
 
 `ci-python.txt` records exact installed dependency versions used to validate
-AeroMesh 0.2.0 on Linux and CPython 3.12. CI also exercises this snapshot on Python
+AeroMesh 1.0.0 on Linux and CPython 3.12. CI also exercises this snapshot on Python
 3.11 and 3.13. Package metadata restricts runtime API families; the constraint
 file removes resolver drift within those families for development and CI:
 

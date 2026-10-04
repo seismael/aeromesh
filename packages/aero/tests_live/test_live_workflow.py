@@ -14,7 +14,7 @@ def _install_agent(agent_id: str, persona: str):
     agents_dir = get_aeromesh_agents_dir()
     agents_dir.mkdir(parents=True, exist_ok=True)
     manifest = {
-        "manifest_version": "0.2.0",
+        "manifest_version": "1.0.0",
         "identity": {"id": agent_id, "name": agent_id, "version": "1.0.0"},
         "capabilities": {
             "domain": "General",
@@ -47,7 +47,7 @@ def test_live_workflow_two_steps():
 
     workflow = WorkflowParser().validate_dict(
         {
-            "workflow_version": "0.2.0",
+            "workflow_version": "1.0.0",
             "identity": {"id": "live-wf", "name": "Live WF", "version": "1.0.0"},
             "steps": [
                 {"id": "a", "agent_id": "live-a", "intent": "Reply A"},
@@ -67,4 +67,4 @@ def test_live_workflow_two_steps():
     result = driver.execute("run the two steps")
     assert set(result["outputs"].keys()) == {"a", "b"}
     assert result["outputs"]["a"].strip() == "A"
-    assert result["verified_result"].strip() == "B"
+    assert result["output"].strip() == "B"

@@ -4,12 +4,13 @@ import json
 import pytest
 
 from aero.services import trust
+from aero.domain.errors import AeroMeshDomainError
 
 
 def _write_manifest(path, agent_id="demo-agent"):
     data = {
-        "manifest_version": "0.1.0",
-        "identity": {"id": agent_id, "name": "Demo", "version": "0.1.0"},
+        "manifest_version": "1.0.0",
+        "identity": {"id": agent_id, "name": "Demo", "version": "1.0.0"},
     }
     path.write_text(json.dumps(data), encoding="utf-8")
     return data
@@ -55,9 +56,8 @@ def test_verify_manifest_trusted_requires_trusted_key(monkeypatch, tmp_path):
     trust.sign_manifest_file(str(manifest_path))
 
     # No trusted key registered yet -> untrusted
-    ok, reason = trust.verify_manifest_trusted_file(str(manifest_path), "demo-agent")
-    assert ok is False
-    assert "trusted public key" in reason
+    with pytest.raises(AeroMeshDomainError, match="trusted public key"):
+        trust.require_trusted_manifest(manifest_path, "demo-agent")
 
 
 def test_verify_manifest_trusted_succeeds_with_matching_key(monkeypatch, tmp_path):
@@ -70,8 +70,8 @@ def test_verify_manifest_trusted_succeeds_with_matching_key(monkeypatch, tmp_pat
 
     # Importing a repository or author key never grants implicit approval.
     trust.trust_key("demo-agent", pub_path)
-    ok, reason = trust.verify_manifest_trusted_file(str(manifest_path), "demo-agent")
-    assert ok is True
+    verified = trust.require_trusted_manifest(manifest_path, "demo-agent")
+    assert verified == json.loads(manifest_path.read_text())
 
 
 def test_revoke_key_blocks_verification(monkeypatch, tmp_path):
@@ -87,10 +87,7 @@ def test_revoke_key_blocks_verification(monkeypatch, tmp_path):
     public_path.write_text(pub_key, encoding="utf-8")
     trust.trust_key("demo-agent", public_path)
 
-    ok, _ = trust.verify_manifest_trusted_file(str(manifest_path), "demo-agent")
-    assert ok is True
-
+    assert trust.require_trusted_manifest(manifest_path, "demo-agent")
     assert trust.revoke_key("demo-agent") is True
-    ok, reason = trust.verify_manifest_trusted_file(str(manifest_path), "demo-agent")
-    assert ok is False
-    assert "REVOKED" in reason
+    with pytest.raises(AeroMeshDomainError, match="REVOKED"):
+        trust.require_trusted_manifest(manifest_path, "demo-agent")

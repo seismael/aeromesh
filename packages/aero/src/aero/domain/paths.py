@@ -66,14 +66,6 @@ def get_aeromesh_home() -> Path:
         return home / ".local" / "share" / "aeromesh"
 
 
-def get_aeromesh_config_file() -> Path:
-    return get_aeromesh_home() / "config.json"
-
-
-def get_aeromesh_credentials_file() -> Path:
-    return get_aeromesh_home() / "credentials.json"
-
-
 def get_aeromesh_agents_dir() -> Path:
     return get_aeromesh_home() / "agents"
 
@@ -91,14 +83,6 @@ def get_aeromesh_revoked_dir() -> Path:
     return get_aeromesh_home() / "revoked"
 
 
-def get_aeromesh_vfs_dir() -> Path:
-    return get_aeromesh_home() / "vfs"
-
-
-def get_aeromesh_logs_dir() -> Path:
-    return get_aeromesh_home() / "logs"
-
-
 def get_aeromesh_workspace_registry_dir() -> Path:
     """Returns absolute path to workspace registry/agents directory."""
     curr = Path(__file__).resolve()
@@ -112,16 +96,6 @@ def get_aeromesh_workspace_registry_dir() -> Path:
 def get_aeromesh_workspace_workflows_dir() -> Path:
     """Returns absolute path to workspace registry/workflows directory."""
     return get_aeromesh_workspace_registry_dir().parent / "workflows"
-
-
-def get_aeromesh_workspace_trusted_dir() -> Path:
-    """Returns the git-registry trust store (registry/trusted) holding public keys."""
-    return get_aeromesh_workspace_registry_dir().parent / "trusted"
-
-
-def get_aeromesh_workspace_revoked_dir() -> Path:
-    """Returns the git-registry revocation store (registry/revoked)."""
-    return get_aeromesh_workspace_registry_dir().parent / "revoked"
 
 
 def resolve_agent_manifest_path(target_str: str) -> Optional[Path]:

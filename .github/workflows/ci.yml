@@ -88,6 +88,36 @@ jobs:
           AEROMESH_REQUIRE_DOCKER_TESTS: "1"
         run: python -m pytest packages/aero/tests_system -m docker -q
 
+  publish:
+    # A dedicated release commit is the operator's publication instruction.
+    # The script validates the exact subject, event, SHA, versions and metadata.
+    if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && startsWith(github.event.head_commit.message, 'release: v') }}
+    needs: [test, distribution, isolated-process]
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write
+    concurrency:
+      group: aeromesh-github-release
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Download distributions validated by this workflow run
+        uses: actions/download-artifact@v4
+        with:
+          name: python-distributions
+          path: dist
+      - name: Publish verified artifacts through a draft release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python scripts/publish_release.py --dist dist
+
   live:
     # Never run paid provider calls or expose secrets to pull-request changes.
     if: ${{ github.event_name == 'workflow_dispatch' && inputs.live && github.ref == 'refs/heads/main' }}

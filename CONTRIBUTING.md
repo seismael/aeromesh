@@ -1,13 +1,24 @@
 # Contributing
 
-AeroMesh is a focused configuration, approved-release and execution-policy layer on Deep Agents. Keep the runtime native; do not add speculative schema fields or security claims without implemented semantics and negative tests.
+AeroMesh provides approved agent releases and enforceable execution policy on Deep Agents. Keep the runtime native and every public capability tied to implemented behavior and verification.
 
-1. Read `.agents/AGENTS.md` and the architecture/security documentation.
-2. Reproduce the user-visible defect with a failing regression first.
-3. Make the bounded implementation change; preserve fail-closed defaults and explicit development opt-in.
-4. Update documentation and migration notes when behavior changes.
-5. Run `pytest packages/aero/tests -q`, real local MCP tests, and distribution checks. Container or provider checks must be explicitly reported as passed, failed or not exercised.
+1. Read [.agents/AGENTS.md](.agents/AGENTS.md), [architecture](docs/ARCHITECTURE.md), [security](SECURITY.md) and the [v1 acceptance matrix](docs/VALIDATION.md).
+2. Reproduce a behavior defect with a failing regression that exercises the affected boundary.
+3. Make the focused implementation change. Preserve fail-closed production defaults and explicit development opt-in.
+4. Keep schemas, CLI/SDK interfaces, examples and operational documentation consistent. Reject options whose semantics are unsupported.
+5. Run the required acceptance gates and report each relevant container/provider check as passed, failed or not exercised.
 
-Use explicit test fixtures for model substitutes. Keep production code free of fake outputs. Test actual transport, scheduling, filesystem and crypto boundaries where those are the claim; avoid tests that only repeat a mapping implementation.
+## Development environment
 
-Do not commit credentials, signing private keys, local approvals, sessions, receipts or build products. Public examples are unsigned drafts. A signature does not prove a code review or independent safety evaluation.
+From the repository root, in an activated Python 3.11–3.13 virtual environment:
+
+```bash
+python -m pip install -c constraints/ci-python.txt -e 'packages/aero[dev]' -e packages/sdk-python
+python -m pip check
+python -m pytest packages/aero/tests -q
+python -m pytest packages/aero/tests_system -m 'not docker' -q
+```
+
+Follow [validation](docs/VALIDATION.md) for real Docker and clean-distribution gates. Use explicit per-test fixtures when substituting models. Production code must use real execution paths and must never return invented successful results. Tests of crypto, scheduling, transport and filesystem behavior should exercise those boundaries directly.
+
+Do not commit credentials, private signing keys, local approvals, sessions, receipts or build products. Public examples are unsigned drafts. A signature, lint result or schema-valid output does not establish safe code or task correctness.

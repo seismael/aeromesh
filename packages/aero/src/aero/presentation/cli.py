@@ -13,10 +13,10 @@ from pathlib import Path
 
 from aero.domain.errors import AeroMeshDomainError, ErrorCode, ExitCode
 from aero.domain import paths
-from aero.infrastructure.parser import ManifestParser, WorkflowParser, strict_json
+from aero.infrastructure.parser import ManifestParser, WorkflowParser, strict_json, strict_json_value
 from aero.services import trust
 
-VERSION = "0.2.0"
+VERSION = "1.0.0"
 
 
 def _error(
@@ -79,7 +79,7 @@ def _write_new(path, data):
 def _template(artifact_id):
     paths.validate_artifact_id(artifact_id)
     return {
-        "manifest_version": "0.2.0",
+        "manifest_version": "1.0.0",
         "identity": {
             "id": artifact_id,
             "name": artifact_id.replace("-", " ").title(),
@@ -183,11 +183,8 @@ def _arguments():
     p = sub.add_parser("search")
     p.add_argument("intent")
     sub.add_parser("index")
-    for name in ("audit", "lint", "export-bundle"):
-        p = sub.add_parser(
-            name, help="Static manifest lint; not a security certification"
-        )
-        p.add_argument("manifest")
+    p = sub.add_parser("lint", help="Static manifest lint; not a security certification")
+    p.add_argument("manifest")
     p = sub.add_parser("vault")
     vs = p.add_subparsers(dest="vault_command", required=True)
     v = vs.add_parser("set")
@@ -279,15 +276,7 @@ def _install(target, *, development=False, workflow=False):
 def _intent(args):
     value = args.intent if args.intent is not None else "Perform the configured task."
     if args.input_json:
-        try:
-            return json.loads(
-                value,
-                parse_constant=lambda v: (_ for _ in ()).throw(
-                    ValueError("Non-finite number")
-                ),
-            )
-        except ValueError as exc:
-            raise _error(f"Invalid --input-json: {exc}") from exc
+        return strict_json_value(value)
     return value
 
 
@@ -299,7 +288,7 @@ def _show_run(result, args):
         if isinstance(execution, dict) and "execution_result" in execution:
             execution = execution["execution_result"]
         output = (
-            execution.get("verified_result", execution)
+            execution.get("output", execution)
             if isinstance(execution, dict)
             else execution
         )
@@ -317,7 +306,7 @@ def _show_run(result, args):
                 or {
                     k: v
                     for k, v in execution.items()
-                    if k not in {"verified_result", "output"}
+                    if k != "output"
                 }
             )
     return 0
@@ -326,7 +315,7 @@ def _show_run(result, args):
 def _dispatch(args):
     command = args.command
     if command == "version":
-        print(f"aero / amx {VERSION} (DAM/DWM 0.2; supported 0.1 subset)")
+        print(f"aero / amx {VERSION} (DAM/DWM 1.0.0)")
         return 0
     if command == "init":
         output = args.output or f"{args.agent_id}.agent.json"
@@ -451,16 +440,12 @@ def _dispatch(args):
         else:
             _json({"agents": discovery.build_workspace_index()})
         return 0
-    if command in {"audit", "lint", "export-bundle"}:
+    if command == "lint":
         from aero.infrastructure.guardian import GuardianSecurityScanner
 
         scanner = GuardianSecurityScanner()
         raw = Path(args.manifest).read_text(encoding="utf-8")
-        result = (
-            scanner.scan_manifest_content(raw)
-            if command != "export-bundle"
-            else scanner.export_bundle(raw)
-        )
+        result = scanner.scan_manifest_content(raw)
         _json(result)
         return 1 if result.get("issues") else 0
     if command == "vault":
@@ -494,7 +479,7 @@ def _workflow(args):
     if command == "init":
         paths.validate_artifact_id(args.workflow_id)
         data = {
-            "workflow_version": "0.2.0",
+            "workflow_version": "1.0.0",
             "identity": {
                 "id": args.workflow_id,
                 "name": args.workflow_id,

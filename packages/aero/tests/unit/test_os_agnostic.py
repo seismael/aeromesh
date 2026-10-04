@@ -1,39 +1,40 @@
-"""Unit tests for OS-Agnostic Cross-Platform Path Resolution."""
+"""Unit tests for platform-aware application state paths."""
 
-import os
-import shutil
-import pytest
 from pathlib import Path
-from aero.domain.paths import (
-    get_aeromesh_home,
-    get_aeromesh_config_file,
-    get_aeromesh_credentials_file,
-    get_aeromesh_vfs_dir,
-    get_aeromesh_logs_dir,
+
+import pytest
+
+from aero.domain import paths
+
+
+def test_aeromesh_home_custom_override(monkeypatch, tmp_path):
+    custom_dir = tmp_path / "custom_aeromesh_home"
+    monkeypatch.setenv("AEROMESH_HOME", str(custom_dir))
+
+    assert paths.get_aeromesh_home() == custom_dir
+    assert paths.get_aeromesh_agents_dir() == custom_dir / "agents"
+    assert paths.get_aeromesh_workflows_dir() == custom_dir / "workflows"
+    assert paths.get_aeromesh_trusted_dir() == custom_dir / "trusted"
+    assert paths.get_aeromesh_revoked_dir() == custom_dir / "revoked"
+
+
+@pytest.mark.parametrize(
+    "platform, environment, relative_path",
+    [
+        ("win32", {"LOCALAPPDATA": "local-app-data"}, "local-app-data/AeroMesh"),
+        ("win32", {"APPDATA": "app-data"}, "app-data/AeroMesh"),
+        ("win32", {}, "home/.aeromesh"),
+        ("darwin", {}, "home/Library/Application Support/AeroMesh"),
+        ("linux", {"XDG_DATA_HOME": "xdg-data"}, "xdg-data/aeromesh"),
+        ("linux", {}, "home/.local/share/aeromesh"),
+    ],
 )
-
-@pytest.fixture
-def workspace_tmp_dir():
-    scratch_dir = os.path.abspath(
-        os.path.join(os.path.dirname(__file__), "..", "scratch")
-    )
-    os.makedirs(scratch_dir, exist_ok=True)
-    yield scratch_dir
-    shutil.rmtree(scratch_dir, ignore_errors=True)
-
-def test_aeromesh_home_custom_override(monkeypatch, workspace_tmp_dir):
-    custom_dir = os.path.join(workspace_tmp_dir, "custom_aeromesh_home")
-    monkeypatch.setenv("AEROMESH_HOME", custom_dir)
-    
-    path = get_aeromesh_home()
-    assert str(path) == custom_dir
-    assert get_aeromesh_config_file() == Path(custom_dir) / "config.json"
-    assert get_aeromesh_credentials_file() == Path(custom_dir) / "credentials.json"
-    assert get_aeromesh_vfs_dir() == Path(custom_dir) / "vfs"
-    assert get_aeromesh_logs_dir() == Path(custom_dir) / "logs"
-
-def test_aeromesh_home_default_resolution(monkeypatch):
+def test_aeromesh_home_platform_resolution(monkeypatch, tmp_path, platform, environment, relative_path):
     monkeypatch.delenv("AEROMESH_HOME", raising=False)
-    path = get_aeromesh_home()
-    assert isinstance(path, Path)
-    assert len(str(path)) > 0
+    for variable in ("LOCALAPPDATA", "APPDATA", "XDG_DATA_HOME"):
+        monkeypatch.delenv(variable, raising=False)
+    for variable, value in environment.items():
+        monkeypatch.setenv(variable, str(tmp_path / value))
+    monkeypatch.setattr(paths.sys, "platform", platform)
+    monkeypatch.setattr(Path, "home", lambda: tmp_path / "home")
+    assert paths.get_aeromesh_home() == tmp_path / relative_path

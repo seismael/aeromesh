@@ -9,7 +9,7 @@ from aero.presentation.cli import main
 
 def _draft():
     return {
-        "manifest_version": "0.2.0",
+        "manifest_version": "1.0.0",
         "identity": {"id": "reviewed-draft", "name": "Draft", "version": "1.0.0"},
         "capabilities": {
             "domain": "test",

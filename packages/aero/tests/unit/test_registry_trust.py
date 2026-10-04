@@ -3,11 +3,14 @@
 import json
 from pathlib import Path
 
+import pytest
+
+from aero.domain.errors import AeroMeshDomainError
+
 from aero.domain.paths import (
     get_aeromesh_agents_dir,
     get_aeromesh_workspace_registry_dir,
     get_aeromesh_workspace_workflows_dir,
-    get_aeromesh_workspace_trusted_dir,
 )
 from aero.infrastructure.attestation import generate_keypair, sign_manifest_dict
 from aero.infrastructure.parser import ManifestParser, WorkflowParser
@@ -26,9 +29,9 @@ def test_registry_examples_are_valid_unsigned_drafts():
             artifact = parser.parse_file(str(path))
             assert trust.load_attestation(path) is None
             assert trust.trusted_public_key(artifact.identity.id) is None
-            ok, _ = trust.verify_manifest_trusted_file(path, artifact.identity.id)
-            assert not ok, "Shipped drafts must require consumer approval"
-    assert not list(get_aeromesh_workspace_trusted_dir().glob("*.pub"))
+            with pytest.raises(AeroMeshDomainError, match="trusted public key"):
+                trust.require_trusted_manifest(path, artifact.identity.id)
+    assert not list(get_aeromesh_workspace_registry_dir().parent.rglob("*.pub"))
 
 
 def test_user_approved_workflow_and_references_verify(tmp_path):
@@ -48,7 +51,7 @@ def test_user_approved_workflow_and_references_verify(tmp_path):
     trust.trust_key(agent.identity.id, public_path)
 
     workflow_data = {
-        "workflow_version": "0.1.0",
+        "workflow_version": "1.0.0",
         "identity": {
             "id": "locally-approved-workflow",
             "name": "Approved",

@@ -65,15 +65,10 @@ class AeroAgentRunnerService:
         enable_diagnostics: bool = False,
         manifest_object: Optional[Any] = None,
         replay_session_id: Optional[str] = None,
-        execute_tools: Optional[bool] = None,
         development: bool = False,
         approved_release: Any = None,
         expected_id: Optional[str] = None,
     ) -> Dict[str, Any]:
-        if execute_tools is not None:
-            raise _failure(
-                "execute_tools is no longer supported; declare and approve tool permissions explicitly."
-            )
         if replay_session_id:
             return self._resume_session(
                 replay_session_id,

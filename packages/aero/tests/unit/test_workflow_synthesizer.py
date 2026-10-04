@@ -9,7 +9,7 @@ from aero.services import workflow_synthesizer as module
 from aero.infrastructure.attestation import canonicalize, sha256_hex
 
 RAW = {
-    "manifest_version": "0.1.0",
+    "manifest_version": "1.0.0",
     "identity": {"id": "worker", "name": "Worker", "version": "1.0.0"},
     "capabilities": {
         "domain": "test",
@@ -28,7 +28,7 @@ def setup(monkeypatch, agent_id="worker"):
             return AIMessage(
                 content=json.dumps(
                     {
-                        "workflow_version": "0.1.0",
+                        "workflow_version": "1.0.0",
                         "identity": {
                             "id": "pipeline",
                             "name": "Pipeline",

@@ -3,7 +3,7 @@
 from aero.infrastructure.schema_binding import AeroSchemaBindingService
 
 VALID_MANIFEST = """{
-  "manifest_version": "0.1.0",
+  "manifest_version": "1.0.0",
   "identity": { "id": "binding-agent", "name": "Binding Agent", "version": "1.0.0" },
   "capabilities": { "domain": "DevOps", "tags": ["devops"], "short_description": "Test binding", "evaluation_trigger": "Test" },
   "cognitive_runtime": { "persona": "Engineer", "success_criteria": "Done" },
@@ -16,8 +16,8 @@ def test_schema_binding_service():
     info = service.get_schema_binding_info()
 
     assert "schema_uri" in info
-    assert info["manifest_version"] == "0.2.0"
-    assert info["schema_uri"].endswith(":0.2.0")
+    assert info["manifest_version"] == "1.0.0"
+    assert info["schema_uri"].endswith(":1.0.0")
     assert info["supported_drivers"] == ["Driver.LangGraph"]
     assert info["production_transport"] == "stdio"
     assert info["development_only_transports"] == ["sse", "http"]

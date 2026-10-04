@@ -25,7 +25,7 @@ def write(path, data):
 
 def agent(agent_id="sdk-agent"):
     return {
-        "manifest_version": "0.2.0",
+        "manifest_version": "1.0.0",
         "identity": {"id": agent_id, "name": agent_id, "version": "1.0.0"},
         "capabilities": {
             "domain": "Test",
@@ -50,7 +50,7 @@ def workflow(tmp_path):
     return write(
         tmp_path / "workflow.json",
         {
-            "workflow_version": "0.2.0",
+            "workflow_version": "1.0.0",
             "identity": {
                 "id": "sdk-workflow",
                 "name": "SDK workflow",
@@ -94,7 +94,7 @@ def test_sdk_agent_explicit_development(tmp_path, offline_runtime):
     result = AeroKernel().run_agent(str(path), "Answer", development=True)
     assert result["mode"] == "AGENT"
     assert (
-        result["result"]["execution_result"]["verified_result"]
+        result["result"]["execution_result"]["output"]
         == offline_runtime.response
     )
     assert result["result"]["receipt"]["development"] is True
@@ -154,7 +154,7 @@ def test_sdk_approved_release_rechecks_policy_and_revocation(
     result = kernel.run_release(digest, "Answer")
     if kind == "agent":
         assert result["receipt"]["release_digest"] == digest
-        assert result["execution_result"]["verified_result"] == offline_runtime.response
+        assert result["execution_result"]["output"] == offline_runtime.response
     else:
         assert result["outputs"] == {
             "a": offline_runtime.response,

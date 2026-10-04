@@ -1,6 +1,8 @@
 """Session metadata must survive concurrent writes without leaking task data."""
 
-import json
+import sqlite3
+
+import pytest
 from concurrent.futures import ThreadPoolExecutor
 
 from aero.services.session import SessionRegistry
@@ -9,7 +11,7 @@ from aero.services.session import SessionRegistry
 def test_concurrent_session_updates_are_transactional(tmp_path):
     def write(i):
         SessionRegistry(tmp_path).record(
-            str(i), agent_id="worker", thread_id=str(i), intent="sensitive request"
+            str(i), agent_id="worker", thread_id=str(i)
         )
 
     with ThreadPoolExecutor(max_workers=8) as executor:
@@ -20,28 +22,26 @@ def test_concurrent_session_updates_are_transactional(tmp_path):
     assert (tmp_path / "sessions.sqlite").exists()
 
 
-def test_legacy_registry_is_migrated_without_sensitive_intent(tmp_path):
-    (tmp_path / "sessions.json").write_text(
-        json.dumps(
-            {
-                "old": {
-                    "session_id": "old",
-                    "agent_id": "worker",
-                    "thread_id": "old",
-                    "intent": "secret",
-                    "created_at": 1,
-                }
-            }
+def test_session_registry_accepts_only_safe_metadata(tmp_path):
+    registry = SessionRegistry(tmp_path)
+    with pytest.raises(ValueError, match="Unsupported session metadata fields"):
+        registry.record(
+            "session", agent_id="worker", thread_id="session", intent="secret request"
         )
-    )
-    record = SessionRegistry(tmp_path).get("old")
-    assert record["session_id"] == "old"
-    assert "intent" not in record
-    assert record["resume_supported"] is False
+    assert registry.get("session") is None
+
+
+def test_session_storage_has_only_v1_tables(tmp_path):
+    assert SessionRegistry(tmp_path).list() == []
+    with sqlite3.connect(tmp_path / "sessions.sqlite") as connection:
+        tables = {
+            row[0]
+            for row in connection.execute("SELECT name FROM sqlite_master WHERE type='table'")
+        }
+    assert tables == {"sessions", "snapshots", "receipts"}
 
 
 def test_same_session_cannot_execute_concurrently(tmp_path):
-    import pytest
     from aero.domain.errors import AeroMeshDomainError
 
     registry = SessionRegistry(tmp_path)

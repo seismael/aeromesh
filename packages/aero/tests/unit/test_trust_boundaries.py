@@ -28,10 +28,10 @@ def signed_artifact(tmp_path, artifact_id="approved-agent"):
 
 def test_repository_keys_do_not_grant_local_trust(tmp_path, monkeypatch):
     manifest, public, _ = signed_artifact(tmp_path)
-    registry = tmp_path / "registry-trusted"
-    registry.mkdir()
+    registry = tmp_path / "registry" / "trusted"
+    registry.mkdir(parents=True)
     (registry / "approved-agent.pub").write_bytes(public.read_bytes())
-    monkeypatch.setattr(paths, "get_aeromesh_workspace_trusted_dir", lambda: registry)
+    monkeypatch.setattr(paths, "get_aeromesh_workspace_registry_dir", lambda: registry.parent / "agents")
     with pytest.raises(AeroMeshDomainError, match="trusted public key") as missing:
         trust.require_trusted_manifest(str(manifest))
     assert missing.value.exit_code == ExitCode.TRUST_VIOLATION
@@ -153,12 +153,12 @@ class UnavailableStore:
         raise RuntimeError("keyring unavailable")
 
 
-def test_vault_does_not_read_legacy_or_desktop_secrets(tmp_path, monkeypatch):
-    (tmp_path / "credentials.json").write_text('{"UNIQUE_AUDIT_SECRET":"legacy"}')
+def test_vault_does_not_read_filesystem_secrets(tmp_path, monkeypatch):
+    (tmp_path / "credentials.json").write_text('{"UNIQUE_AUDIT_SECRET":"unapproved-file-value"}')
     (tmp_path / "Desktop").mkdir()
     (tmp_path / "Desktop" / "tokens.txt").write_text("UNIQUE_AUDIT_SECRET=desktop")
     monkeypatch.setattr(Path, "home", lambda: tmp_path)
-    resolver = ZeroTrustVaultResolver(config_dir=tmp_path, store=UnavailableStore())
+    resolver = ZeroTrustVaultResolver(store=UnavailableStore())
     provider = CapabilityProviderRequirement(
         type="credential", id="UNIQUE_AUDIT_SECRET"
     )
@@ -167,26 +167,59 @@ def test_vault_does_not_read_legacy_or_desktop_secrets(tmp_path, monkeypatch):
 
 
 def test_keyring_failure_does_not_write_plaintext(tmp_path):
-    resolver = ZeroTrustVaultResolver(config_dir=tmp_path, store=UnavailableStore())
+    resolver = ZeroTrustVaultResolver(store=UnavailableStore())
     with pytest.raises(AeroMeshDomainError, match="keyring") as unavailable:
         resolver._save_credential("SECRET", "synthetic-value")
     assert unavailable.value.exit_code == ExitCode.VAULT_KEY_MISSING
     assert not (tmp_path / "credentials.json").exists()
 
 
-def test_explicit_legacy_read_is_scoped_and_does_not_enable_writes(tmp_path):
-    (tmp_path / "credentials.json").write_text(
-        '{"REQUESTED":"old-value","UNREQUESTED":"other"}'
-    )
-    resolver = ZeroTrustVaultResolver(
-        config_dir=tmp_path, store=UnavailableStore(), allow_legacy_plaintext=True
-    )
+def test_vault_only_resolves_requested_credentials(monkeypatch):
+    monkeypatch.setenv("REQUESTED", "requested-value")
+    monkeypatch.setenv("UNREQUESTED", "other-value")
+    resolver = ZeroTrustVaultResolver(store=UnavailableStore())
     provider = CapabilityProviderRequirement(type="credential", id="REQUESTED")
     assert resolver.resolve_requirements([provider], non_interactive=True) == {
-        "REQUESTED": "old-value"
+        "REQUESTED": "requested-value"
     }
-    with pytest.raises(AeroMeshDomainError):
-        resolver._save_credential("NEW_SECRET", "never-written")
+
+
+def test_vault_locked_keyring_fails_without_prompting_or_overwriting(monkeypatch):
+    monkeypatch.delenv("LOCKED_KEY", raising=False)
+
+    class LockedStore:
+        def get(self, key):
+            raise RuntimeError("locked")
+
+        def set(self, key, value):
+            pytest.fail("Unavailable storage must not be overwritten")
+
+    resolver = ZeroTrustVaultResolver(
+        store=LockedStore(),
+        prompt_fn=lambda *args: pytest.fail("Keyring failure is not a missing credential"),
+    )
+    provider = CapabilityProviderRequirement(type="credential", id="LOCKED_KEY")
+    with pytest.raises(AeroMeshDomainError, match="OS keyring unavailable"):
+        resolver.resolve_requirements([provider])
+
+
+def test_explicit_credentials_work_without_keyring_access(monkeypatch):
+    monkeypatch.setenv("ENV_KEY", "env-value")
+
+    class LockedStore:
+        def get(self, key):
+            pytest.fail("Explicit credentials must not access the keyring")
+
+    resolver = ZeroTrustVaultResolver(
+        override_env={"EXPLICIT_KEY": "explicit-value"}, store=LockedStore()
+    )
+    providers = [
+        CapabilityProviderRequirement(type="credential", id=key)
+        for key in ("ENV_KEY", "EXPLICIT_KEY")
+    ]
+    assert resolver.resolve_requirements(providers, non_interactive=True) == {
+        "ENV_KEY": "env-value", "EXPLICIT_KEY": "explicit-value"
+    }
 
 
 def test_atomic_sidecar_failure_preserves_previous_signature(tmp_path, monkeypatch):

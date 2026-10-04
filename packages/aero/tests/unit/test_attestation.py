@@ -39,8 +39,8 @@ def test_verify_bytes_rejects_tampered_data():
 def test_sign_and_verify_manifest_roundtrip():
     priv_pem, pub_pem = generate_keypair()
     manifest = {
-        "manifest_version": "0.1.0",
-        "identity": {"id": "demo", "name": "Demo", "version": "0.1.0"},
+        "manifest_version": "1.0.0",
+        "identity": {"id": "demo", "name": "Demo", "version": "1.0.0"},
     }
     attestation = sign_manifest_dict(manifest, priv_pem)
     assert attestation["algorithm"] == "ed25519"

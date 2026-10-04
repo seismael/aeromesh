@@ -16,14 +16,12 @@ class AeroSchemaBindingService:
     def get_schema_binding_info(self) -> Dict[str, Any]:
         """Describe the shipped schema and the actual production boundary."""
         schema = json.loads(Path(self.parser.schema_path).read_text(encoding="utf-8"))
-        versions = schema["properties"]["manifest_version"]["enum"]
+        version = schema["properties"]["manifest_version"]["const"]
         return {
             "schema_uri": schema["$id"],
             "local_schema_path": os.path.abspath(self.parser.schema_path),
-            "manifest_version": max(
-                versions, key=lambda v: tuple(map(int, v.split(".")))
-            ),
-            "accepted_manifest_versions": versions,
+            "manifest_version": version,
+            "accepted_manifest_versions": [version],
             "supported_drivers": [
                 "Driver.LangGraph",
             ],

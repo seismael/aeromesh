@@ -15,7 +15,7 @@ from aero.services.trust import atomic_write
 SYSTEM_PROMPT = (
     "You are an agent-designer. Given a user goal, output ONLY a valid JSON object "
     "conforming to the AeroMesh declarative-agent manifest schema with fields: "
-    'manifest_version ("0.1.0"), identity{id,name,version}, capabilities{domain,tags,'
+    'manifest_version ("1.0.0"), identity{id,name,version}, capabilities{domain,tags,'
     "short_description,evaluation_trigger}, cognitive_runtime{persona,success_criteria}, "
     "requirements{providers:[]}. The identity.id must be a lowercase kebab-case slug. "
     "This authors a tool-free draft only. providers MUST remain []. No credential, tool, filesystem, or sub-agent access is available. The persona must answer the goal using the supplied information in the "
@@ -51,7 +51,7 @@ def manifest_to_dict(manifest: AgentManifest) -> Dict[str, Any]:
             key: value for key, value in raw[block].items() if value is not None
         }
     provider_keys = {
-        "credential": {"type", "id", "kind", "fallback_action"},
+        "credential": {"type", "id", "kind"},
         "mcp": {
             "type",
             "id",
@@ -81,24 +81,6 @@ def manifest_to_dict(manifest: AgentManifest) -> Dict[str, Any]:
                 ErrorCode.AMX_ERR_SCHEMA_VIOLATION,
                 ExitCode.SCHEMA_VIOLATION,
             )
-    if raw.get("swarm_topology") and any(
-        raw["swarm_topology"].get(key) is not None
-        for key in ("consensus_threshold", "routing_key")
-    ):
-        raise AeroMeshDomainError(
-            "Unsupported swarm topology behavior.",
-            ErrorCode.AMX_ERR_SCHEMA_VIOLATION,
-            ExitCode.SCHEMA_VIOLATION,
-        )
-    if (
-        raw.get("observability")
-        and raw["observability"].get("trace_level", "info") != "info"
-    ):
-        raise AeroMeshDomainError(
-            "Unsupported trace_level; configure native runtime tracing explicitly.",
-            ErrorCode.AMX_ERR_SCHEMA_VIOLATION,
-            ExitCode.SCHEMA_VIOLATION,
-        )
     data["requirements"] = {
         "providers": [
             {
@@ -106,6 +88,12 @@ def manifest_to_dict(manifest: AgentManifest) -> Dict[str, Any]:
                 for key, value in provider.items()
                 if key in provider_keys.get(provider["type"], {"type", "id"})
                 and value is not None
+                and not (
+                    provider["type"] == "mcp"
+                    and provider.get("transport") in {"sse", "http"}
+                    and key in {"args", "allowed_domains", "credential_bindings"}
+                    and value in ([], {})
+                )
             }
             for provider in raw["providers"]
         ]
@@ -116,7 +104,7 @@ def manifest_to_dict(manifest: AgentManifest) -> Dict[str, Any]:
         data["observability"] = {
             key: value
             for key, value in raw["observability"].items()
-            if value is not None and key != "trace_level"
+            if value is not None
         }
     return data
 
@@ -130,7 +118,7 @@ def persist_draft(data: Dict[str, Any]) -> Path:
 
 
 class JitSynthesizer:
-    """Synthesizes a DAM v0.1 manifest for a goal using a real LLM.
+    """Synthesizes a DAM v1 manifest for a goal using a real LLM.
 
     There is no synthetic/template fallback: without a live provider key,
     synthesis raises a clear error. Test doubles are injected from test code.

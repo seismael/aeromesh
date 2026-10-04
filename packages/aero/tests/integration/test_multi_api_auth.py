@@ -22,7 +22,7 @@ from aero.services.releases import build_release
 @pytest.fixture
 def multi_tool_draft(tmp_path):
     data = {
-        "manifest_version": "0.2.0",
+        "manifest_version": "1.0.0",
         "identity": {"id": "local-report", "name": "Local report", "version": "1.0.0"},
         "capabilities": {
             "domain": "Testing",
@@ -107,12 +107,27 @@ def test_vault_and_connections_keep_credentials_scoped(multi_tool_draft, monkeyp
         "FIRST_DATA_KEY": "first-synthetic-secret",
         "SECOND_DATA_KEY": "second-synthetic-secret",
     }
-    # Only locate a launcher for connection compilation; no subprocess is run.
+    # Isolate image metadata discovery here; real Docker behavior has its own gate.
+    import subprocess
+
     monkeypatch.setattr(
         "aero.infrastructure.tool_execution.shutil.which",
         lambda executable: "/audit/docker",
     )
-    connections = mcp_connections(manifest, credentials)
+    monkeypatch.setattr(
+        "aero.infrastructure.tool_execution.subprocess.run",
+        lambda command, **kwargs: subprocess.CompletedProcess(
+            command, 0, stdout=b"null" if "inspect" in command else b""
+        ),
+    )
+    cleanup = []
+    try:
+        connections = mcp_connections(
+            manifest, credentials, cleanup_callbacks=cleanup
+        )
+    finally:
+        for callback in reversed(cleanup):
+            callback()
     first, second = (
         connections["first-reader"]["env"],
         connections["second-reader"]["env"],

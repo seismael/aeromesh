@@ -55,7 +55,7 @@ app.run(transport='stdio')
 """)
     manifest = ManifestParser().validate_dict(
         {
-            "manifest_version": "0.1.0",
+            "manifest_version": "1.0.0",
             "identity": {"id": "parallel", "name": "Parallel", "version": "1.0.0"},
             "capabilities": {
                 "domain": "test",

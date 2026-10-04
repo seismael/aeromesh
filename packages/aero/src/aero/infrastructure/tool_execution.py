@@ -7,6 +7,7 @@ proxy environment variable is never presented as isolation of a host process.
 
 from __future__ import annotations
 
+import json
 import os
 import re
 import shutil
@@ -193,6 +194,8 @@ def build_stdio_connection(
         _reject(
             "Docker is required for trusted tool execution; install a local Linux-container Docker engine."
         )
+    if cleanup_callbacks is None:
+        _reject("Container execution requires an explicit cleanup_callbacks owner.")
     endpoint = (
         "npipe:////./pipe/docker_engine"
         if os.name == "nt"
@@ -202,49 +205,84 @@ def build_stdio_connection(
     # containers. An empty per-launch config prevents that additional channel.
     docker_config = tempfile.TemporaryDirectory(prefix="amx-docker-config-")
     docker_prefix = [docker, f"--host={endpoint}", f"--config={docker_config.name}"]
+    process_env = _process_environment()
+    try:
+        # Docker creates writable anonymous volumes from image VOLUME metadata,
+        # even with --read-only. Reject those images so all writable storage stays
+        # inside the explicitly size-bounded tmpfs mounts.
+        inspected = subprocess.run(
+            [
+                *docker_prefix,
+                "image",
+                "inspect",
+                "--format",
+                "{{json .Config.Volumes}}",
+                image,
+            ],
+            env=process_env,
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            timeout=10,
+            check=False,
+        )
+        if inspected.returncode != 0:
+            _reject(
+                "Pinned tool image is unavailable or cannot be inspected by the local Docker engine."
+            )
+        volumes = json.loads(inspected.stdout)
+        if volumes is not None and volumes != {}:
+            _reject(
+                "Tool images must not declare volumes; image volumes bypass the read-only filesystem boundary."
+            )
+    except (OSError, subprocess.TimeoutExpired, ValueError, TypeError) as exc:
+        docker_config.cleanup()
+        _reject(
+            f"Cannot verify pinned tool image storage configuration: {type(exc).__name__}."
+        )
+    except BaseException:
+        docker_config.cleanup()
+        raise
     # MCP adapters can open multiple simultaneous stateless sessions using the
     # same connection. Let Docker allocate names and clean up by an unguessable
     # connection ownership label instead of assigning one colliding fixed name.
     owner = uuid.uuid4().hex
-    process_env = _process_environment()
+
+    def owned_containers() -> list[str]:
+        inventory = subprocess.run(
+            [
+                *docker_prefix,
+                "ps",
+                "--all",
+                "--quiet",
+                "--no-trunc",
+                "--filter",
+                f"label=aeromesh.owner={owner}",
+            ],
+            env=process_env,
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            timeout=10,
+            check=False,
+        )
+        if getattr(inventory, "returncode", 0) != 0:
+            _reject(
+                f"Could not confirm cleanup of MCP owner '{owner}'; Docker inventory failed."
+            )
+        ids = (getattr(inventory, "stdout", None) or b"").decode("ascii").split()
+        if not all(re.fullmatch(r"[0-9a-f]{64}", item) for item in ids):
+            _reject(
+                f"Could not confirm cleanup of MCP owner '{owner}'; invalid container inventory."
+            )
+        return ids
 
     def cleanup() -> None:
         try:
-            inventory = subprocess.run(
-                [
-                    *docker_prefix,
-                    "ps",
-                    "--all",
-                    "--quiet",
-                    "--no-trunc",
-                    "--filter",
-                    f"label=aeromesh.owner={owner}",
-                ],
-                env=process_env,
-                stdin=subprocess.DEVNULL,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                timeout=10,
-                check=False,
-            )
-            if getattr(inventory, "returncode", 0) != 0:
-                warnings.warn(
-                    f"Could not confirm cleanup of MCP owner '{owner}'; Docker inventory failed.",
-                    RuntimeWarning,
-                    stacklevel=2,
-                )
-                return
-            ids = (getattr(inventory, "stdout", None) or b"").decode("ascii").split()
-            if not all(re.fullmatch(r"[0-9a-f]{64}", item) for item in ids):
-                warnings.warn(
-                    f"Could not confirm cleanup of MCP owner '{owner}'; invalid container inventory.",
-                    RuntimeWarning,
-                    stacklevel=2,
-                )
-                return
+            ids = owned_containers()
             if not ids:
                 return
-            result = subprocess.run(
+            subprocess.run(
                 [*docker_prefix, "rm", "--force", "--volumes", *ids],
                 env=process_env,
                 stdin=subprocess.DEVNULL,
@@ -253,19 +291,15 @@ def build_stdio_connection(
                 timeout=10,
                 check=False,
             )
-            if getattr(result, "returncode", 0) != 0 and b"No such container" not in (
-                getattr(result, "stderr", None) or b""
-            ):
-                warnings.warn(
-                    f"Could not confirm cleanup of MCP owner '{owner}'; Docker removal failed.",
-                    RuntimeWarning,
-                    stacklevel=2,
+            # A concurrent --rm may make removal return nonzero. Re-inventory
+            # confirms actual absence and cannot hide mixed removal failures.
+            if owned_containers():
+                _reject(
+                    f"Could not confirm cleanup of MCP owner '{owner}'; Docker removal failed."
                 )
         except (OSError, subprocess.TimeoutExpired, UnicodeError) as exc:
-            warnings.warn(
-                f"Could not confirm cleanup of MCP owner '{owner}': {type(exc).__name__}.",
-                RuntimeWarning,
-                stacklevel=2,
+            _reject(
+                f"Could not confirm cleanup of MCP owner '{owner}': {type(exc).__name__}."
             )
         finally:
             docker_config.cleanup()

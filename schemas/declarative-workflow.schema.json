@@ -1,6 +1,6 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "$id": "urn:aeromesh:schemas:declarative-workflow:0.2.0",
+  "$id": "urn:aeromesh:schemas:declarative-workflow:1.0.0",
   "title": "AeroMesh Declarative Workflow Manifest (DWM)",
   "description": "Explicit dependency DAG of immutable agent references.",
   "type": "object",
@@ -13,10 +13,7 @@
   "properties": {
     "workflow_version": {
       "type": "string",
-      "enum": [
-        "0.1.0",
-        "0.2.0"
-      ]
+      "const": "1.0.0"
     },
     "identity": {
       "type": "object",

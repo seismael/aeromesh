@@ -142,7 +142,7 @@ def test_native_mcp_protocol_discovery_and_parallel_calls_cross_production_conta
     monkeypatch.setenv("UNRELATED_SECRET", "must-not-cross-boundary")
     manifest = ManifestParser().validate_dict(
         {
-            "manifest_version": "0.2.0",
+            "manifest_version": "1.0.0",
             "identity": {
                 "id": "container-protocol",
                 "name": "Container protocol",
@@ -266,6 +266,7 @@ def test_parallel_sessions_have_no_name_collision_and_cleanup_confirms_limits(
             assert config["NanoCpus"] == 1_000_000_000
             assert config["LogConfig"]["Type"] == "none"
             assert not config["Binds"]
+            assert all(mount["Type"] != "volume" for mount in item["Mounts"])
             assert item["Config"]["User"] == "65532:65532"
         for cleanup in reversed(callbacks):
             cleanup()

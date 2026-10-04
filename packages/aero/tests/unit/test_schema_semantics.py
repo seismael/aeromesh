@@ -11,7 +11,7 @@ from aero.domain.errors import AeroMeshDomainError
 
 def minimal():
     return {
-        "manifest_version": "0.2.0",
+        "manifest_version": "1.0.0",
         "identity": {"id": "schema-test", "name": "Schema test", "version": "1.0.0"},
         "capabilities": {
             "domain": "test",
@@ -57,8 +57,8 @@ def test_contracts_cannot_fetch_external_schemas():
 
 def test_duplicate_json_keys_rejected():
     raw = json.dumps(minimal()).replace(
-        '"manifest_version": "0.2.0"',
-        '"manifest_version":"0.1.0","manifest_version":"0.2.0"',
+        '"manifest_version": "1.0.0"',
+        '"manifest_version":"1.0.0","manifest_version":"1.0.0"',
     )
     with pytest.raises(AeroMeshDomainError):
         ManifestParser().parse_raw(raw)
@@ -95,7 +95,7 @@ def test_budget_requires_explicit_prices_and_output_cap():
 
 def test_workflow_agent_reference_is_an_id_not_a_path():
     data = {
-        "workflow_version": "0.2.0",
+        "workflow_version": "1.0.0",
         "identity": {"id": "wf", "name": "Workflow", "version": "1.0.0"},
         "steps": [
             {"id": "step", "agent_id": "/tmp/self-signed.json", "intent": "Test"}
@@ -215,7 +215,7 @@ def test_finite_recursive_structure_remains_supported():
 
 def test_workflow_input_step_name_is_reserved():
     workflow = {
-        "workflow_version": "0.2.0",
+        "workflow_version": "1.0.0",
         "identity": {"id": "wf", "name": "Workflow", "version": "1.0.0"},
         "steps": [{"id": "input", "agent_id": "reader", "intent": "Read"}],
     }

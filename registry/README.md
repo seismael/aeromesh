@@ -1,7 +1,13 @@
 # Example catalog
 
-These are unsigned, tool-free drafts, not approved production agents. They require a real configured model. Output schemas check structure, not factual accuracy. No signing identity or trust roots are shipped.
+The catalog contains unsigned, tool-free agent drafts and a dependency workflow for supplied-text summarization and review. They illustrate the supported v1 schemas and require a real configured model. Output contracts validate structure; independently evaluate factual accuracy and task quality.
 
-Use `amx run registry/agents/structured-summary.json "Text to summarize" --development` for a local evaluation, or build a release, review it, sign it with your own key, explicitly trust that key, and approve an operator policy. See the main README and `docs/RELEASES.md`.
+For a local authoring evaluation:
 
-The previous Postgres, cloud, payments, RAG, security and social-publishing examples were removed: their integrations and business outcomes were not validated. The real local MCP transport example is `examples/dependency-inventory/`.
+```bash
+amx run registry/agents/structured-summary.json 'Text to summarize' --development
+```
+
+For an approved run, build the workflow release, review all embedded manifests, sign it with your own key, explicitly trust the verified public key and approve an independent operator policy. The [main README](../README.md#first-approved-release) provides the complete sequence; [release documentation](../docs/RELEASES.md) defines the policy contract.
+
+No signing identities or automatic trust roots are shipped. [Dependency inventory](../examples/dependency-inventory/README.md) provides a separate actual local MCP tool and an offline transport check.

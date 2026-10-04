@@ -4,11 +4,12 @@ from __future__ import annotations
 
 import os
 import shutil
+from pathlib import Path
 from typing import Any
 
 from aero.domain.errors import AeroMeshDomainError, ErrorCode, ExitCode
 from aero.domain import paths
-from aero.infrastructure.parser import ManifestParser, WorkflowParser, strict_json
+from aero.infrastructure.parser import ManifestParser, WorkflowParser, strict_json, _read_manifest
 from aero.infrastructure.tool_execution import (
     validate_stdio_provider,
     validate_credential_bindings,
@@ -30,8 +31,13 @@ def preflight(
     ) or paths.resolve_workflow_manifest_path(target)
     approved = None
     raw = None
+    expected_id = None
     if resolved:
-        raw = strict_json(resolved.read_text(encoding="utf-8"))
+        raw = strict_json(_read_manifest(str(resolved)))
+        if not Path(target).is_file():
+            expected_id = str(target).removesuffix(".json")
+            if raw.get("identity", {}).get("id") != expected_id:
+                fail("Catalog reference resolved to a different artifact identity")
     if raw is None or "release_version" in raw:
         if development:
             fail("Release preflight always requires an approved release")
@@ -41,7 +47,7 @@ def preflight(
         raw = approved.entry_data
         resolved = approved.entry_path
     elif not development:
-        raw = trust.require_trusted_manifest(str(resolved))
+        raw = trust.require_trusted_manifest(str(resolved), expected_id=expected_id)
     if "workflow_version" in raw:
         from aero.services.workflow_runner import WorkflowExecutionDriver
 
@@ -88,7 +94,7 @@ def preflight(
                 if path is None:
                     fail(f"Missing referenced agent {provider.agent_id}")
                 raw_child = (
-                    strict_json(path.read_text(encoding="utf-8"))
+                    strict_json(_read_manifest(str(path)))
                     if development
                     else trust.require_trusted_manifest(str(path), provider.agent_id)
                 )

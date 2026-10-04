@@ -20,11 +20,11 @@ def main():
     example = Path(__file__).resolve().parent
     manifest = ManifestParser().validate_dict(
         {
-            "manifest_version": "0.2.0",
+            "manifest_version": "1.0.0",
             "identity": {
                 "id": "dependency-inventory",
                 "name": "Dependency inventory",
-                "version": "0.2.0",
+                "version": "1.0.0",
             },
             "capabilities": {
                 "domain": "Software engineering",

@@ -1,6 +1,6 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "$id": "urn:aeromesh:schemas:declarative-agent:0.2.0",
+  "$id": "urn:aeromesh:schemas:declarative-agent:1.0.0",
   "title": "AeroMesh Declarative Agent Manifest",
   "description": "Versioned agent configuration with enforced execution contracts.",
   "type": "object",
@@ -15,10 +15,7 @@
   "properties": {
     "manifest_version": {
       "type": "string",
-      "enum": [
-        "0.1.0",
-        "0.2.0"
-      ]
+      "const": "1.0.0"
     },
     "identity": {
       "type": "object",
@@ -282,6 +279,21 @@
                           "required": [
                             "image"
                           ]
+                        },
+                        {
+                          "required": [
+                            "args"
+                          ]
+                        },
+                        {
+                          "required": [
+                            "allowed_domains"
+                          ]
+                        },
+                        {
+                          "required": [
+                            "credential_bindings"
+                          ]
                         }
                       ]
                     }
@@ -310,12 +322,8 @@
                       "connection_string",
                       "bearer_token",
                       "password"
-                    ]
-                  },
-                  "fallback_action": {
-                    "enum": [
-                      "prompt_user"
-                    ]
+                    ],
+                    "description": "Credential metadata only; bindings explicitly select which provider receives each secret."
                   }
                 }
               },

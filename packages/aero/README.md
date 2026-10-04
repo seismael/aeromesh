@@ -1,30 +1,35 @@
-# Aero Engine (`aero` / `amx`)
+# AeroMesh CLI and runtime (`aero` / `amx`)
 
-The AeroMesh CLI validates, approves, and runs declarative agent releases compiled
-into LangChain Deep Agents. Version 0.2.0 tightens trust and runtime capability
-checks; unsupported declarations fail instead of being silently ignored.
+AeroMesh 1.0.0 validates, signs, approves and runs declarative agent releases through LangChain Deep Agents and LangGraph.
 
-## Capabilities
+- Signed releases include recursive agent dependencies and exact tool-image references.
+- Explicit signer trust and independent operator policies are checked at execution and resume.
+- Production MCP tools use reviewed, preloaded, network-disabled Linux containers with scoped credentials and resource limits.
+- Deterministic contracts, workflow dependency barriers, bounded execution and local records support reliable operation.
+- Bundled JSON Schemas work from installed distributions. The Python SDK delegates to the same services.
 
-- **Manifest validation** — bundled JSON Schemas work in an installed wheel.
-- **Ed25519 attestation** — `amx keygen` / `amx sign` / `amx verify` (`.sig` sidecars).
-- **Release verification** — installation and normal execution require explicitly approved trust.
-- **LLM-driven JIT synthesis** — synthesize a schema-valid manifest from a live model (no synthetic fallback).
-- **Real tool execution** — `mcp` providers become real LangChain tools via `langchain-mcp-adapters`.
-- **Isolation** — approved container execution is distinct from explicit host development mode. A proxy environment is not process isolation.
-- **Encrypted credentials** — OS-keyring-backed storage (`amx vault set`).
-- **Native providers** — DeepSeek / Anthropic / OpenAI / Gemini via `init_chat_model` (real calls).
+## Install from a reviewed checkout
 
-## Quickstart
+Run from the repository root in an activated virtual environment:
+
+```bash
+python -m pip install -c constraints/ci-python.txt build hatchling editables
+python -m build --no-isolation --outdir dist packages/aero
+python -m pip install -c constraints/ci-python.txt dist/aero-1.0.0-py3-none-any.whl
+amx doctor
+```
+
+These commands use the local source distribution and wheel. They do not require a PyPI release. See the [repository README](https://github.com/seismael/aeromesh#readme) for the complete first approved-release walkthrough and optional SDK installation.
+
+For development and local transport verification:
 
 ```bash
 python -m pip install -c constraints/ci-python.txt -e 'packages/aero[dev]'
-pytest packages/aero/tests
-pytest packages/aero/tests_system -m 'not docker'
+python -m pytest packages/aero/tests -q
+python -m pytest packages/aero/tests_system -m 'not docker' -q
 python examples/dependency-inventory/smoke.py
 ```
 
-See the repository README for the supported manifest subset, migration, trust
-setup, isolation requirements, and release checks. The real MCP example works
-offline; agent reasoning requires a configured model provider. Passing an output
-schema does not establish that an agent's substantive conclusion is correct.
+Agent reasoning requires a real configured model provider. Stored signing keys and tool credentials require secure OS keyring access. Host/remote tool authoring requires explicit development mode and has the caller's authority. Output validation establishes structure; domain-specific checks establish substantive correctness.
+
+[Execution policy](https://github.com/seismael/aeromesh/blob/main/docs/RELEASES.md) · [Operations](https://github.com/seismael/aeromesh/blob/main/docs/OPERATIONS.md) · [Validation](https://github.com/seismael/aeromesh/blob/main/docs/VALIDATION.md)

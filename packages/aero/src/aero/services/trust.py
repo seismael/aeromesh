@@ -226,15 +226,6 @@ def require_trusted_manifest(
         raise _error(f"Invalid artifact or signing key: {exc}") from exc
 
 
-def verify_manifest_trusted_file(manifest_path: str, agent_id: str) -> Tuple[bool, str]:
-    """Compatibility query; execution must use require_trusted_manifest's data."""
-    try:
-        require_trusted_manifest(manifest_path, agent_id)
-        return True, "verified against trusted key"
-    except AeroMeshDomainError as exc:
-        return False, exc.message
-
-
 def verify_workflow_references(workflow: Any) -> Tuple[bool, str]:
     """Verify every directly referenced agent by its confined registry identity."""
     agent_ids = dict.fromkeys(step.agent_id for step in workflow.steps)

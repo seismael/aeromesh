@@ -21,7 +21,7 @@ from aero.services import deepagents_runner as runtime, trust
 
 def raw(agent_id="root", providers=None, contract=None):
     result = {
-        "manifest_version": "0.1.0",
+        "manifest_version": "1.0.0",
         "identity": {"id": agent_id, "name": agent_id, "version": "1.0.0"},
         "capabilities": {
             "domain": "Audit",

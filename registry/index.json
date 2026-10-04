@@ -12,7 +12,7 @@
       ],
       "short_description": "Reviews supplied summary against supplied source text; offers an advisory assessment.",
       "evaluation_trigger": "Review a draft summary",
-      "sha256": "0a92cb7c7afb963813fdda8a665c3181a795cbe2f4e6deccd3748de8d6ca734d",
+      "sha256": "e735d695ed8ceead41516b4d094767e36262b27e7910be1a7ddfcd0c3f55026c",
       "path": "registry/agents/review-summary.json"
     },
     {
@@ -26,7 +26,7 @@
       ],
       "short_description": "Summarizes supplied text in a schema-checked JSON object. Does not retrieve external facts.",
       "evaluation_trigger": "Summarize provided information",
-      "sha256": "fbd01e8cca569adab6369129aa889f3cf4fdec214194025b16780cc3e707d3ae",
+      "sha256": "6c7275866d3f439d62491840f2d0a15c312bd5a9d42e49c45584068581a889d2",
       "path": "registry/agents/structured-summary.json"
     }
   ]

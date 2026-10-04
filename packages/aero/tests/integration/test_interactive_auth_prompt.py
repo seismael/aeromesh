@@ -1,8 +1,5 @@
 """Integration tests for Interactive Credential Prompting & Vault Persistence."""
 
-import os
-import json
-import pytest
 from aero.infrastructure.vault import ZeroTrustVaultResolver
 from aero.infrastructure.credential_store import SecureCredentialStore
 from aero.domain.models import CapabilityProviderRequirement
@@ -22,18 +19,9 @@ class FakeBackend:
         self.data.pop((service, key), None)
 
 
-@pytest.fixture
-def workspace_scratch_dir():
-    scratch_dir = os.path.abspath(
-        os.path.join(os.path.dirname(__file__), "..", "scratch")
-    )
-    os.makedirs(scratch_dir, exist_ok=True)
-    yield scratch_dir
-
-
-def test_interactive_credential_prompting_and_auto_save(workspace_scratch_dir, monkeypatch):
+def test_interactive_credential_prompting_and_auto_save(tmp_path, monkeypatch):
     # Isolated test directory
-    monkeypatch.setenv("AEROMESH_HOME", workspace_scratch_dir)
+    monkeypatch.setenv("AEROMESH_HOME", str(tmp_path))
     monkeypatch.delenv("MISSING_KEY_XYZ", raising=False)
 
     provider = CapabilityProviderRequirement(
@@ -48,7 +36,7 @@ def test_interactive_credential_prompting_and_auto_save(workspace_scratch_dir, m
 
     store = SecureCredentialStore(backend=FakeBackend())
     resolver = ZeroTrustVaultResolver(
-        config_dir=workspace_scratch_dir, prompt_fn=mock_prompt, store=store
+        prompt_fn=mock_prompt, store=store
     )
     resolved = resolver.resolve_requirements([provider], non_interactive=False)
 
@@ -56,4 +44,4 @@ def test_interactive_credential_prompting_and_auto_save(workspace_scratch_dir, m
 
     # Credential is persisted to the encrypted OS-keyring store, not plaintext.
     assert store.get("MISSING_KEY_XYZ") == "secret_user_input_token_999"
-    assert not os.path.exists(os.path.join(workspace_scratch_dir, "credentials.json"))
+    assert not (tmp_path / "credentials.json").exists()

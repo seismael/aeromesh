@@ -12,7 +12,7 @@ from aero.presentation.cli import main
 @pytest.fixture
 def manifest_file(tmp_path):
     data = {
-        "manifest_version": "0.2.0",
+        "manifest_version": "1.0.0",
         "identity": {
             "id": "integration-agent",
             "name": "CLI integration",
@@ -69,7 +69,7 @@ def test_amx_explicit_development_execution(manifest_file, offline_runtime, caps
     result = json.loads(capsys.readouterr().out)
     execution = result["execution_result"]
     assert execution["execution_success"] is True
-    assert execution["verified_result"] == offline_runtime.response
+    assert execution["output"] == offline_runtime.response
     assert execution["success_criteria_met"] is None
     assert result["receipt"]["development"] is True
 
@@ -100,3 +100,13 @@ def test_amx_run_command_missing_vault_key_failure(manifest_file, monkeypatch):
         )
         == ExitCode.VAULT_KEY_MISSING
     )
+
+
+@pytest.mark.parametrize('raw', ['{"amount":1,"amount":2}', '1e309'])
+def test_structured_input_rejects_ambiguous_json_before_execution(raw, manifest_file, monkeypatch):
+    def forbidden(*args, **kwargs):
+        pytest.fail('Invalid structured input reached model resolution')
+    monkeypatch.setattr('aero.services.deepagents_runner.resolve_model', forbidden)
+    assert main([
+        'run', str(manifest_file), raw, '--input-json', '--development', '--non-interactive'
+    ]) == ExitCode.SCHEMA_VIOLATION

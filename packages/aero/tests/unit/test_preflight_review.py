@@ -18,7 +18,7 @@ from aero.services.trust import revoke_key
 
 def _agent(identity, providers=None):
     return {
-        "manifest_version": "0.2.0",
+        "manifest_version": "1.0.0",
         "identity": {"id": identity, "name": identity, "version": "1.0.0"},
         "capabilities": {
             "domain": "test",
@@ -99,7 +99,7 @@ def test_preflight_inspects_transitive_workflow_agent(monkeypatch):
     root = _agent("root", [_ref(missing)])
     _install(root)
     workflow = {
-        "workflow_version": "0.2.0",
+        "workflow_version": "1.0.0",
         "identity": {"id": "workflow", "name": "Workflow", "version": "1.0.0"},
         "steps": [
             {
@@ -158,3 +158,12 @@ def test_preflight_rejects_malformed_model_before_credentials_or_tools(
     monkeypatch.setenv("AEROMESH_MODEL", model)
     with pytest.raises(AeroMeshDomainError, match="provider:model"):
         preflight(str(target), probe_tools=True)
+
+
+@pytest.mark.parametrize("development", [False, True])
+def test_preflight_rejects_catalog_identity_mismatch_before_effects(monkeypatch, development):
+    wrong = _install(_agent("different-agent"))
+    monkeypatch.setattr(paths, "resolve_agent_manifest_path", lambda target: wrong)
+    _no_effects(monkeypatch)
+    with pytest.raises(AeroMeshDomainError, match="different artifact identity"):
+        preflight("requested-agent", development=development, probe_tools=True)

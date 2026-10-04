@@ -11,11 +11,11 @@ from aero.domain.models import AgentManifest
 
 
 VALID_MANIFEST = {
-    "manifest_version": "0.1.0",
+    "manifest_version": "1.0.0",
     "identity": {
         "id": "jit-anomaly-detector",
         "name": "Anomaly Detector",
-        "version": "0.1.0",
+        "version": "1.0.0",
     },
     "capabilities": {
         "domain": "Time Series Monitoring",
@@ -51,8 +51,8 @@ def test_extract_json_strips_code_fences():
 
 
 def test_extract_json_finds_object_embedded_in_text():
-    text = 'Here is the manifest:\n{"manifest_version": "0.1.0"}\nDone.'
-    assert extract_json(text) == {"manifest_version": "0.1.0"}
+    text = 'Here is the manifest:\n{"manifest_version": "1.0.0"}\nDone.'
+    assert extract_json(text) == {"manifest_version": "1.0.0"}
 
 
 def test_synthesize_via_llm_returns_valid_manifest():

@@ -1,7 +1,6 @@
 """Search index & discovery engine for AeroMesh (real BM25 keyword search)."""
 
 import hashlib
-import json
 import math
 import re
 from collections import Counter
@@ -12,7 +11,6 @@ from typing import Any, Dict, List, Optional
 from aero.domain.paths import (
     get_aeromesh_agents_dir,
     get_aeromesh_workspace_registry_dir,
-    get_aeromesh_home,
 )
 from aero.infrastructure.parser import ManifestParser
 
@@ -76,7 +74,7 @@ class RegistryIndexRecord:
 class SearchResult:
     record: RegistryIndexRecord
     match_score: float
-    search_tier: str  # "TIER_1_VECTOR_INDEX" or "TIER_2_COGNITIVE_MATCHER"
+    method: str
     rationale: str
 
 
@@ -86,15 +84,10 @@ class AeroDiscoveryEngine:
     def __init__(self, parser: Optional[ManifestParser] = None):
         self.parser = parser or ManifestParser()
 
-    def get_cache_file_path(self) -> Path:
-        cache_dir = get_aeromesh_home() / "cache"
-        cache_dir.mkdir(parents=True, exist_ok=True)
-        return cache_dir / "index.json"
-
     def build_registry_index(
-        self, extra_paths: Optional[List[Path]] = None, use_cache: bool = True
+        self, extra_paths: Optional[List[Path]] = None
     ) -> List[RegistryIndexRecord]:
-        """Scans local AppData store and workspace registry to build an in-memory index, backed by AppData index.json cache."""
+        """Read local and workspace manifest metadata without persistent cache state."""
         records: List[RegistryIndexRecord] = []
         search_dirs: List[Path] = [
             get_aeromesh_agents_dir(),
@@ -130,35 +123,12 @@ class AeroDiscoveryEngine:
                 except Exception:
                     pass
 
-        # Save to AppData cache
-        if use_cache:
-            try:
-                cache_file = self.get_cache_file_path()
-                cached_data = [
-                    {
-                        "id": r.id,
-                        "name": r.name,
-                        "version": r.version,
-                        "domain": r.domain,
-                        "tags": r.tags,
-                        "short_description": r.short_description,
-                        "evaluation_trigger": r.evaluation_trigger,
-                        "path": r.path,
-                    }
-                    for r in records
-                ]
-                with open(cache_file, "w", encoding="utf-8") as f:
-                    json.dump(cached_data, f, indent=2)
-            except Exception:
-                pass
-
         return records
 
     def build_workspace_index(self) -> List[Dict[str, Any]]:
         """Build the shared registry catalog from workspace ``registry/agents/``.
 
-        This is the JSON written to ``registry/index.json`` so remote consumers
-        can search/install the git-as-registry catalog without cloning the repo.
+        The CLI emits this data as JSON. It never grants trust or permissions.
         """
         registry_dir = get_aeromesh_workspace_registry_dir()
         entries: List[Dict[str, Any]] = []
@@ -196,13 +166,12 @@ class AeroDiscoveryEngine:
         )
         return _tokenize(text)
 
-    def search_tier1_fast(
+    def rank(
         self, intent: str, records: List[RegistryIndexRecord], top_k: int = 3
     ) -> List[SearchResult]:
         """Rank records by real BM25 lexical score over their metadata.
 
-        No mocks, no constant fallback scores: every returned result carries a
-        genuine BM25 score derived from the query and the record's fields.
+        Scores describe lexical relevance, not agent quality or correctness.
         """
         if not records:
             return []
@@ -225,17 +194,13 @@ class AeroDiscoveryEngine:
                 SearchResult(
                     record=record,
                     match_score=round(score, 4),
-                    search_tier="TIER_1_BM25",
+                    method="bm25",
                     rationale=f"BM25 lexical match score {score:.3f}",
                 )
             )
         return results
 
     def search(self, intent: str, top_k: int = 3) -> List[SearchResult]:
-        """Real BM25 keyword search over the local registry index.
-
-        Semantic/embedding search is a later enhancement (see README roadmap);
-        this is honest lexical ranking, not a placeholder.
-        """
+        """BM25 keyword search over local agent metadata."""
         records = self.build_registry_index()
-        return self.search_tier1_fast(intent, records, top_k=top_k)
+        return self.rank(intent, records, top_k=top_k)

@@ -21,6 +21,7 @@ from langchain.agents.middleware import AgentMiddleware
 from aero.domain.models import AgentManifest
 from aero.domain.errors import AeroMeshDomainError, ErrorCode, ExitCode
 from aero.domain.paths import get_aeromesh_home, resolve_agent_manifest_path
+from aero.infrastructure.parser import strict_json, strict_json_value
 
 DEFAULT_MAX_STEPS = 40
 DEFAULT_MAX_MODEL_CALLS = 40
@@ -62,21 +63,6 @@ def _budget_error(message):
     )
 
 
-def _json_value(text):
-    def unique(pairs):
-        result = {}
-        for key, value in pairs:
-            if key in result:
-                raise ValueError(f"Duplicate JSON key: {key}")
-            result[key] = value
-        return result
-
-    def invalid(value):
-        raise ValueError(f"Non-finite JSON value: {value}")
-
-    return json.loads(text, object_pairs_hook=unique, parse_constant=invalid)
-
-
 def _validate_input(manifest, value):
     contract = manifest.capabilities.input_contract
     if contract is None:
@@ -84,11 +70,12 @@ def _validate_input(manifest, value):
     try:
         validator = jsonschema.Draft7Validator(contract)
         if isinstance(value, str) and not validator.is_valid(value):
-            value = _json_value(value)
+            value = strict_json_value(value)
         # Python callers must still supply values representable by strict JSON.
         json.dumps(value, allow_nan=False)
         validator.validate(value)
     except (
+        AeroMeshDomainError,
         ValueError,
         TypeError,
         RecursionError,
@@ -122,9 +109,10 @@ def _validate_output(manifest, result):
     if contract is None:
         return final_text, None, None
     try:
-        structured = _json_value(final_text)
+        structured = strict_json_value(final_text)
         jsonschema.Draft7Validator(contract).validate(structured)
     except (
+        AeroMeshDomainError,
         ValueError,
         RecursionError,
         Unresolvable,
@@ -305,7 +293,7 @@ def default_store_db() -> Path:
 
 @asynccontextmanager
 async def _sqlite_setup_lock(path):
-    """Serialize native schema migrations across processes and driver threads."""
+    """Serialize native schema initialization across processes and driver threads."""
     handle = path.with_suffix(path.suffix + ".setup.lock").open("a+b")
     acquired = False
     try:
@@ -759,8 +747,8 @@ class DeepAgentsExecutionDriver:
                     self.store = self._loop.run_until_complete(build_async_store())
                     self._owned_backends.append(self.store)
             self.agent = self._compile(self.manifest, (), mcp_tools)
-        except BaseException:
-            self.close()
+        except BaseException as exc:
+            self._close_after_failure(exc)
             raise
 
     def _verify_root(self, path):
@@ -804,7 +792,7 @@ class DeepAgentsExecutionDriver:
             if path is None:
                 raise _error(f"Unknown subagent {provider.agent_id!r}.")
             if self.development:
-                data = json.loads(path.read_text(encoding="utf-8"))
+                data = strict_json(path.read_text(encoding="utf-8"))
             else:
                 from aero.services.trust import require_trusted_manifest
 
@@ -944,8 +932,19 @@ class DeepAgentsExecutionDriver:
             )
             _validate_input(manifest, value)
             scoped = TokenUsageCounter(manifest.observability)
+            # A delegated graph must enforce its own declared step bound, while
+            # never expanding the tighter limit inherited from its caller.
+            step_limit = min(
+                config.get("recursion_limit", DEFAULT_MAX_STEPS),
+                getattr(manifest.observability, "max_execution_steps", None)
+                or DEFAULT_MAX_STEPS,
+            )
             result = await graph.ainvoke(
-                state, config=merge_configs(config, {"callbacks": [scoped]})
+                state,
+                config=merge_configs(
+                    config,
+                    {"callbacks": [scoped], "recursion_limit": step_limit},
+                ),
             )
             _validate_output(manifest, result)
             return result
@@ -1029,8 +1028,7 @@ class DeepAgentsExecutionDriver:
             return {
                 "agent_id": self.manifest.identity.id,
                 "thread_id": thread_id,
-                "result": final_text,
-                "verified_result": final_text,
+                "output": final_text,
                 "structured_output": structured,
                 "execution_completed": True,
                 "execution_success": True,
@@ -1041,19 +1039,35 @@ class DeepAgentsExecutionDriver:
                 "model": self._model_name,
                 "persistence": "ephemeral" if self._ephemeral else "checkpointed",
             }
-        except BaseException:
-            self.close()
+        except BaseException as exc:
+            self._close_after_failure(exc)
             raise
+
+    def _close_after_failure(self, error):
+        """Preserve the initiating error without hiding residual resources."""
+        try:
+            self.close()
+        except BaseException as cleanup_error:
+            notice = (
+                "Execution cleanup could not be confirmed; inspect remaining "
+                "aeromesh.managed containers and execution resources."
+            )
+            error.add_note(f"{notice} Cleanup error: {type(cleanup_error).__name__}.")
+            warnings.warn(notice, RuntimeWarning, stacklevel=2)
 
     def close(self):
         if self._closed:
             return
         self._closed = True
+        failures = []
         if self._loop is not None and not self._loop.is_closed():
 
             async def shutdown():
                 if self._mcp_sessions is not None:
-                    await self._mcp_sessions.close()
+                    try:
+                        await self._mcp_sessions.close()
+                    except BaseException as exc:
+                        failures.append(exc)
                 tasks = [
                     t for t in asyncio.all_tasks() if t is not asyncio.current_task()
                 ]
@@ -1064,20 +1078,28 @@ class DeepAgentsExecutionDriver:
                 connections = [
                     getattr(b, "conn", None) for b in reversed(self._owned_backends)
                 ]
-                await asyncio.gather(
+                results = await asyncio.gather(
                     *(conn.close() for conn in connections if conn is not None),
                     return_exceptions=True,
+                )
+                failures.extend(
+                    result for result in results if isinstance(result, BaseException)
                 )
 
             try:
                 self._loop.run_until_complete(shutdown())
-            except Exception:
-                pass
+            except BaseException as exc:
+                failures.append(exc)
             finally:
                 self._loop.close()
         for cleanup in reversed(self._cleanup_callbacks):
             try:
                 cleanup()
-            except Exception:
-                pass
+            except BaseException as exc:
+                failures.append(exc)
         self._cleanup_callbacks.clear()
+        if failures:
+            raise _error(
+                "Execution cleanup could not be confirmed; "
+                "inspect remaining aeromesh.managed containers and execution resources."
+            ) from failures[0]

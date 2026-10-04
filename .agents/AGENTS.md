@@ -15,7 +15,7 @@ AeroMesh is a versioned configuration and approved-release layer on LangChain De
 - Never expose undeclared credentials or silently downgrade secure storage to plaintext.
 - Implement each accepted schema field or reject it. Unsupported options must not be ignored.
 - Do not equate a signature, static lint, nonempty model response, or schema-valid output with safe code or successful business outcomes.
-- Keep README, operational guidance and migration notes synchronized with behavior.
+- Keep schemas, README, operational guidance and the v1 acceptance matrix synchronized with behavior.
 - Run `pytest packages/aero/tests -q` before claiming completion. Also exercise actual MCP transport, package installations and relevant container tests for changes to those boundaries.
 - Record exact verification results and explicitly identify unavailable live/provider/container checks. Do not label skipped checks as passed.
 - Cite concrete file paths. Keep communication concise and focused on behavior and evidence.

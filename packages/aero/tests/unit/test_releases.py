@@ -28,7 +28,7 @@ IMAGE = "example/scanner@sha256:" + "a" * 64
 
 def agent(agent_id="root", providers=None):
     return {
-        "manifest_version": "0.1.0",
+        "manifest_version": "1.0.0",
         "identity": {"id": agent_id, "name": agent_id, "version": "1.0.0"},
         "capabilities": {
             "domain": "testing",
@@ -312,7 +312,7 @@ def test_workflow_release_resolves_nested_agents_and_pins_steps(tmp_path):
         agent(providers=[{"type": "sub_agent", "id": "delegate", "agent_id": "child"}]),
     )
     workflow = {
-        "workflow_version": "0.1.0",
+        "workflow_version": "1.0.0",
         "identity": {"id": "workflow", "name": "Workflow", "version": "1.0.0"},
         "steps": [{"id": "first", "agent_id": "root", "intent": "Do it"}],
     }
@@ -334,7 +334,7 @@ def test_workflow_release_resolves_nested_agents_and_pins_steps(tmp_path):
 def test_workflow_cannot_omit_reference_pin_in_signed_release(tmp_path):
     write(tmp_path / "root.json", agent())
     workflow = {
-        "workflow_version": "0.1.0",
+        "workflow_version": "1.0.0",
         "identity": {"id": "workflow", "name": "Workflow", "version": "1.0.0"},
         "steps": [{"id": "first", "agent_id": "root", "intent": "Do it"}],
     }
@@ -396,7 +396,7 @@ def test_cli_workflow_release_runs_verified_closure(tmp_path, capsys, offline_ru
     write(tmp_path / "first.json", agent("first"))
     write(tmp_path / "second.json", agent("second"))
     workflow = {
-        "workflow_version": "0.1.0",
+        "workflow_version": "1.0.0",
         "identity": {"id": "workflow", "name": "Workflow", "version": "1.0.0"},
         "steps": [
             {"id": "a", "agent_id": "first", "intent": "Inspect {input}"},

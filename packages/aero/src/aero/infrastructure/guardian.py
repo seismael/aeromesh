@@ -1,7 +1,6 @@
 """Small manifest lint rules. This is neither a code audit nor certification."""
 
 import hashlib
-import json
 from typing import Any, Dict
 from aero.infrastructure.parser import ManifestParser
 
@@ -33,14 +32,4 @@ class GuardianSecurityScanner:
             "passed_checks": not issues,
             "issues": issues,
             "scope": "Heuristic manifest lint only. Passing does not establish safe code, trusted provenance, isolation, or task correctness.",
-        }
-
-    def export_bundle(self, raw_json: str) -> Dict[str, Any]:
-        result = self.scan_manifest_content(raw_json)
-        return {
-            "report_version": "1",
-            "signed": False,
-            **result,
-            "manifest_data": json.loads(raw_json),
-            "next_step": "Use amx release build, sign, and release approve for a signed, policy-approved artifact.",
         }

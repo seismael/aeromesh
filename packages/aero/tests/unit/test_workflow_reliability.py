@@ -11,7 +11,7 @@ from aero.services import workflow_runner
 
 def workflow(tmp_path, monkeypatch, steps):
     payload = {
-        "manifest_version": "0.1.0",
+        "manifest_version": "1.0.0",
         "identity": {"id": "worker", "name": "Worker", "version": "1.0.0"},
         "capabilities": {
             "domain": "test",
@@ -27,7 +27,7 @@ def workflow(tmp_path, monkeypatch, steps):
     monkeypatch.setattr(workflow_runner, "resolve_agent_manifest_path", lambda _: path)
     return WorkflowParser().validate_dict(
         {
-            "workflow_version": "0.1.0",
+            "workflow_version": "1.0.0",
             "identity": {"id": "pipeline", "name": "Pipeline", "version": "1.0.0"},
             "steps": [{"agent_id": "worker", **step} for step in steps],
             "output": steps[-1]["id"],
@@ -43,9 +43,9 @@ def install_driver(monkeypatch, calls, fail=None):
         def execute(self, intent, thread_id=None):
             calls.append((intent, thread_id))
             if fail and fail in intent:
-                return {"verified_result": "failed", "execution_success": False}
+                return {"output": "failed", "execution_success": False}
             return {
-                "verified_result": "evidence",
+                "output": "evidence",
                 "execution_success": True,
                 "execution_completed": True,
                 "output_valid": None,

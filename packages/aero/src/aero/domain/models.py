@@ -10,7 +10,7 @@ class AgentIdentity:
     name: str
     version: str
     author: Optional[str] = None
-    license: str = "MIT"
+    license: Optional[str] = None
     funding: Optional[Dict[str, Any]] = None
 
 
@@ -45,8 +45,6 @@ class CapabilityProviderRequirement:
     allowed_domains: List[str] = field(default_factory=list)
     uri: Optional[str] = None
     required_tools: List[str] = field(default_factory=list)
-    fallback_action: Optional[str] = None
-    isolation: Optional[str] = None
     agent_id: Optional[str] = None
     delegation_purpose: Optional[str] = None
     image: Optional[str] = None
@@ -57,13 +55,10 @@ class CapabilityProviderRequirement:
 @dataclass(frozen=True)
 class SwarmTopology:
     pattern: str = "hierarchical"
-    consensus_threshold: Optional[float] = None
-    routing_key: Optional[str] = None
 
 
 @dataclass(frozen=True)
 class ObservabilityProfile:
-    trace_level: str = "info"
     cost_limit_usd: Optional[float] = None
     max_execution_steps: Optional[int] = None
     max_model_calls: Optional[int] = None
@@ -89,7 +84,7 @@ class WorkflowIdentity:
     name: str
     version: str
     author: Optional[str] = None
-    license: str = "MIT"
+    license: Optional[str] = None
     description: Optional[str] = None
 
 

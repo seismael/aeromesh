@@ -4,7 +4,7 @@ import pytest
 from aero.infrastructure.parser import ManifestParser
 
 FULL_MANIFEST_JSON = """{
-  "manifest_version": "0.2.0",
+  "manifest_version": "1.0.0",
   "identity": {
     "id": "full-test-agent",
     "name": "Full Test Agent Manifest",
@@ -20,7 +20,7 @@ FULL_MANIFEST_JSON = """{
     "domain": "Software Testing",
     "sub_domain": "TDD & Governance",
     "tags": ["testing", "tdd", "schema-validation"],
-    "short_description": "Validates full DAM v0.1 schema field hydration.",
+    "short_description": "Validates full DAM v1 schema field hydration.",
     "evaluation_trigger": "Use for verifying domain model completeness.",
     "input_contract": {
       "type": "object",
@@ -57,8 +57,7 @@ FULL_MANIFEST_JSON = """{
       {
         "type": "credential",
         "id": "REPOSITORY_TOKEN",
-        "kind": "bearer_token",
-        "fallback_action": "prompt_user"
+        "kind": "bearer_token"
       },
       {
         "type": "sub_agent",
@@ -114,7 +113,6 @@ def test_supported_dam_manifest_hydration():
     credential = manifest.providers[1]
     assert credential.id == "REPOSITORY_TOKEN"
     assert credential.kind == "bearer_token"
-    assert credential.fallback_action == "prompt_user"
 
     subagent = manifest.providers[2]
     assert subagent.agent_id == "bounded-auditor"

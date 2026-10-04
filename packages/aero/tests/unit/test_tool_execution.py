@@ -13,6 +13,16 @@ from aero.infrastructure.tool_execution import build_stdio_connection
 IMAGE = "registry.example/tool@sha256:" + "a" * 64
 
 
+@pytest.fixture(autouse=True)
+def local_image_metadata(monkeypatch):
+    monkeypatch.setattr(
+        "aero.infrastructure.tool_execution.subprocess.run",
+        lambda *args, **kwargs: subprocess.CompletedProcess(
+            args[0], 0, stdout=b"null"
+        ),
+    )
+
+
 def provider(**changes):
     values = dict(
         id="example",
@@ -129,13 +139,23 @@ def test_cleanup_removes_only_its_owned_container(monkeypatch):
     )
     calls = []
     container_ids = ["a" * 64, "b" * 64]
+    removed = False
 
     def docker_run(*args, **kwargs):
+        nonlocal removed
+        if "inspect" in args[0]:
+            return subprocess.CompletedProcess(args[0], 0, stdout=b"null")
         calls.append((args, kwargs))
+        if "rm" in args[0]:
+            removed = True
         return subprocess.CompletedProcess(
             args[0],
             0,
-            stdout=("\n".join(container_ids).encode() if "ps" in args[0] else b""),
+            stdout=(
+                "\n".join(container_ids).encode()
+                if "ps" in args[0] and not removed
+                else b""
+            ),
         )
 
     monkeypatch.setattr("aero.infrastructure.tool_execution.subprocess.run", docker_run)
@@ -150,6 +170,7 @@ def test_cleanup_removes_only_its_owned_container(monkeypatch):
     assert f"label={owner}" in calls[0][0][0]
     assert calls[1][0][0][-5:] == ["rm", "--force", "--volumes", *container_ids]
     assert calls[0][1]["timeout"] <= 10
+    assert "ps" in calls[2][0][0]
 
 
 def test_cleanup_reports_failure_without_echoing_process_output(monkeypatch):
@@ -158,12 +179,88 @@ def test_cleanup_reports_failure_without_echoing_process_output(monkeypatch):
     )
     monkeypatch.setattr(
         "aero.infrastructure.tool_execution.subprocess.run",
-        lambda *a, **kw: subprocess.CompletedProcess(
-            [], 1, stderr=b"daemon unavailable: sensitive-details"
+        lambda *a, **kw: (
+            subprocess.CompletedProcess(a[0], 0, stdout=b"null")
+            if "inspect" in a[0]
+            else subprocess.CompletedProcess(
+                [], 1, stderr=b"daemon unavailable: sensitive-details"
+            )
         ),
     )
     callbacks = []
     build_stdio_connection(provider(), {}, cleanup_callbacks=callbacks)
-    with pytest.warns(RuntimeWarning, match="Could not confirm cleanup") as warnings:
+    with pytest.raises(AeroMeshDomainError, match="Could not confirm cleanup") as error:
         callbacks[0]()
-    assert "sensitive-details" not in str(warnings[0].message)
+    assert "sensitive-details" not in str(error.value)
+
+
+@pytest.mark.parametrize(
+    "metadata", [b'{"/data":{}}', b"[]", b'"invalid"', b"not-json"]
+)
+def test_image_volumes_and_invalid_inspection_fail_before_container_launch(
+    monkeypatch, metadata
+):
+    monkeypatch.setattr(
+        "aero.infrastructure.tool_execution.shutil.which", lambda _: "/usr/bin/docker"
+    )
+    calls = []
+
+    def inspect(command, **kwargs):
+        calls.append(command)
+        return subprocess.CompletedProcess(command, 0, stdout=metadata)
+
+    monkeypatch.setattr("aero.infrastructure.tool_execution.subprocess.run", inspect)
+    callbacks = []
+    with pytest.raises(AeroMeshDomainError, match="volumes|storage configuration"):
+        build_stdio_connection(provider(), {}, cleanup_callbacks=callbacks)
+    assert len(calls) == 1 and "inspect" in calls[0]
+    assert callbacks == []
+    config = Path(
+        next(
+            arg.removeprefix("--config=")
+            for arg in calls[0]
+            if arg.startswith("--config=")
+        )
+    )
+    assert not config.exists()
+
+
+def test_unavailable_local_image_does_not_run_or_leak_inspection_details(monkeypatch):
+    monkeypatch.setattr(
+        "aero.infrastructure.tool_execution.shutil.which", lambda _: "/usr/bin/docker"
+    )
+    monkeypatch.setattr(
+        "aero.infrastructure.tool_execution.subprocess.run",
+        lambda *a, **kw: subprocess.CompletedProcess(
+            a[0], 1, stderr=b"sensitive-daemon-details"
+        ),
+    )
+    with pytest.raises(AeroMeshDomainError, match="unavailable") as error:
+        build_stdio_connection(provider(), {}, cleanup_callbacks=[])
+    assert "sensitive-daemon-details" not in str(error.value)
+
+
+@pytest.mark.parametrize("survivors", [b"", b"b" * 64])
+def test_cleanup_confirms_absence_after_racing_or_mixed_removal(monkeypatch, survivors):
+    monkeypatch.setattr(
+        "aero.infrastructure.tool_execution.shutil.which", lambda _: "/usr/bin/docker"
+    )
+    inventories = iter([b"a" * 64 + b"\n" + b"b" * 64, survivors])
+
+    def command(args, **kwargs):
+        if "inspect" in args:
+            return subprocess.CompletedProcess(args, 0, stdout=b"null")
+        if "ps" in args:
+            return subprocess.CompletedProcess(args, 0, stdout=next(inventories))
+        return subprocess.CompletedProcess(
+            args, 1, stderr=b"No such container: first; failed removing second"
+        )
+
+    monkeypatch.setattr("aero.infrastructure.tool_execution.subprocess.run", command)
+    cleanup = []
+    build_stdio_connection(provider(), {}, cleanup_callbacks=cleanup)
+    if survivors:
+        with pytest.raises(AeroMeshDomainError, match="Docker removal failed"):
+            cleanup[0]()
+    else:
+        cleanup[0]()
