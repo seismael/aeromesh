@@ -83,10 +83,24 @@ jobs:
           image=$(docker image inspect busybox:1.37.0 --format '{{index .RepoDigests 0}}')
           test -n "$image"
           echo "AEROMESH_TEST_IMAGE=$image" >> "$GITHUB_ENV"
+      - name: Build the production inventory example at a local registry digest
+        run: |
+          docker run --detach --name inventory-registry --publish 127.0.0.1:5000:5000 registry:2.8.3
+          docker pull python:3.12-slim
+          base=$(docker image inspect python:3.12-slim --format '{{index .RepoDigests 0}}')
+          test -n "$base"
+          docker build --build-arg "BASE_IMAGE=$base" --tag localhost:5000/aeromesh-inventory:ci --file examples/dependency-inventory/Dockerfile .
+          docker push localhost:5000/aeromesh-inventory:ci
+          image=$(docker image inspect localhost:5000/aeromesh-inventory:ci --format '{{index .RepoDigests 0}}')
+          test -n "$image"
+          echo "AEROMESH_INVENTORY_IMAGE=$image" >> "$GITHUB_ENV"
       - name: Actual container boundary tests
         env:
           AEROMESH_REQUIRE_DOCKER_TESTS: "1"
         run: python -m pytest packages/aero/tests_system -m docker -q
+      - name: Remove the temporary test registry
+        if: always()
+        run: docker rm --force --volumes inventory-registry
 
   publish:
     # A dedicated release commit is the operator's publication instruction.

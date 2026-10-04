@@ -19,6 +19,7 @@ Paths in the evidence column are under `packages/aero/` unless otherwise stated.
 | Persistence and resume | Immutable snapshots, current trust, mode and release authority are rechecked; concurrent resumes fail safely | `tests/unit/test_session_integrity.py`, `test_checkpoint_replay.py` |
 | Resource bounds and cleanup | Model-call/output/execution limits apply; delegated limits are enforced; estimated-cost admission happens before calls; every finalizer runs and unconfirmed cleanup fails execution | `tests/unit/test_runtime_contracts_and_limits.py`, `test_runtime_mcp_lifecycle.py`, `test_tool_execution.py`, `test_runtime_boundary_regressions.py` |
 | Real MCP interoperability | Actual stdio initialization, tool listing, calls and provenance work, including concurrent runtime calls | `tests_system/test_dependency_inventory_mcp.py`; container MCP system tests |
+| Useful production example | The shipped dependency inventory image accepts changing inputs through MCP arguments after signature verification and separate policy approval, without network or host mounts | `tests_system/test_approved_inventory_container.py`; `tests/unit/test_inventory_release_example.py` |
 | Development HTTP utility | Redirects are returned without bypassing destination checks; request/response semantics, size bounds and malformed framing are checked | `tests/unit/test_egress_proxy.py` |
 | CLI and SDK adoption | Missing paths do not synthesize implicitly; drafts persist; CLI/SDK use checked service paths and report domain errors | CLI integration tests; `tests/unit/test_sdk_python.py`, `test_preflight.py` |
 | Installed distributions | Source-built wheels include schemas; SDK imports and CLI/parser behavior work outside the checkout without repository data | Repository `scripts/check_distribution.py`; CI `distribution` job |
@@ -37,15 +38,16 @@ python -m pytest packages/aero/tests -q
 python -m pytest packages/aero/tests_system -m 'not docker' -q
 ```
 
-For container qualification, acquire the reviewed fixture image separately, set `AEROMESH_TEST_IMAGE` to its locally available digest-qualified reference, and require the prerequisite:
+For container qualification, acquire the reviewed BusyBox fixture image separately, and build the [production inventory example](../examples/dependency-inventory/README.md). Set both image references to their locally available registry digests and require the prerequisites:
 
 ```bash
 export AEROMESH_TEST_IMAGE='REVIEWED_IMAGE@sha256:EXACT_DIGEST'
+export AEROMESH_INVENTORY_IMAGE='YOUR_REGISTRY/inventory@sha256:EXACT_DIGEST'
 export AEROMESH_REQUIRE_DOCKER_TESTS=1
 python -m pytest packages/aero/tests_system -m docker -q
 ```
 
-CI provisions a fixture image and requires these tests. Local execution without Docker can skip them, but that does not qualify the container boundary. Current container CI runs on Linux.
+CI provisions a fixture image and builds the production inventory image against a digest-pinned Python base and constrained dependencies. A temporary loopback-only registry gives the built image a registry digest; CI publishes it only inside its disposable runner and requires all container tests. Local execution without Docker or either image can skip tests, but that does not qualify the container boundary. Current container CI runs on Linux. These tests call the real tool through an approved release without invoking a model; actual model behavior remains a separate gate.
 
 Build source distributions and wheels, then test only the installed wheels in a fresh environment:
 

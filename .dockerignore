@@ -1,0 +1,7 @@
+**
+!constraints/
+!constraints/ci-python.txt
+!examples/
+!examples/dependency-inventory/
+!examples/dependency-inventory/Dockerfile
+!examples/dependency-inventory/server.py

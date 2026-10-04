@@ -93,7 +93,9 @@ amx run registry/agents/structured-summary.json 'Summarize this supplied text' -
 python examples/dependency-inventory/smoke.py
 ```
 
-The optional agent demo calls a configured model in development mode. Inventory describes dependencies; it does not assess vulnerabilities or dependency safety.
+The example also includes a production container, a release/policy preparation command, and a complete sign–approve–run walkthrough. It accepts requirements text through MCP arguments, so new inputs need neither host mounts nor image rebuilds. CI builds the image and tests actual tool calls through a signed, independently approved release with networking disabled.
+
+The optional local agent demo calls a configured model in development mode. Inventory describes dependencies; it does not assess vulnerabilities or dependency safety. Use the container walkthrough to exercise the supported production tool boundary.
 
 ## Interface essentials
 

@@ -1,4 +1,4 @@
-"""Read a requirements file and expose its actual contents over stdio MCP.
+"""Inventory supplied requirement text or a confined file over stdio MCP.
 
 This inventory is deterministic and offline. It does not assess vulnerabilities,
 resolve transitive dependencies, execute requirements, or download packages.
@@ -26,6 +26,11 @@ def inventory(root: Path, relative_path: str) -> dict:
     # Read no more than the accepted limit, even if the file grows concurrently.
     with source.open("rb") as stream:
         raw = stream.read(MAX_INPUT_BYTES + 1)
+    return parse_inventory(raw, source.relative_to(root).as_posix())
+
+
+def parse_inventory(raw: bytes, source: str) -> dict:
+    """Parse bounded UTF-8 PEP 508 input without resolving or executing it."""
     if len(raw) > MAX_INPUT_BYTES:
         raise ValueError("Input exceeds the 1 MiB inventory limit")
     dependencies = []
@@ -62,7 +67,7 @@ def inventory(root: Path, relative_path: str) -> dict:
         )
     dependencies.sort(key=lambda item: (item["name"], item["line"]))
     return {
-        "path": source.relative_to(root).as_posix(),
+        "path": source,
         "sha256": hashlib.sha256(raw).hexdigest(),
         "dependency_count": len(dependencies),
         "unpinned_count": sum(not item["exact_version_pin"] for item in dependencies),
@@ -71,19 +76,32 @@ def inventory(root: Path, relative_path: str) -> dict:
     }
 
 
+def inventory_text(requirements_text: str) -> dict:
+    return parse_inventory(requirements_text.encode("utf-8"), "<provided>")
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--root", type=Path, required=True)
+    mode = parser.add_mutually_exclusive_group(required=True)
+    mode.add_argument("--root", type=Path)
+    mode.add_argument("--text-input", action="store_true")
     args = parser.parse_args()
-    root = args.root.resolve(strict=True)
-    if not root.is_dir():
-        parser.error("--root must be a directory")
     server = FastMCP("aeromesh-dependency-inventory", log_level="ERROR")
 
-    @server.tool()
-    def inventory_requirements(path: str = "requirements.txt") -> dict:
-        """Inventory PEP 508 dependency lines within the configured input directory."""
-        return inventory(root, path)
+    if args.text_input:
+        @server.tool()
+        def inventory_requirements_text(requirements_text: str) -> dict:
+            """Inventory supplied UTF-8 PEP 508 text; no file or network access."""
+            return inventory_text(requirements_text)
+    else:
+        root = args.root.resolve(strict=True)
+        if not root.is_dir():
+            parser.error("--root must be a directory")
+
+        @server.tool()
+        def inventory_requirements(path: str = "requirements.txt") -> dict:
+            """Inventory PEP 508 lines within the configured input directory."""
+            return inventory(root, path)
 
     server.run(transport="stdio")
 
