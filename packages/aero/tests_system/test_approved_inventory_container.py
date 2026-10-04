@@ -10,7 +10,7 @@ import sys
 from pathlib import Path
 
 import pytest
-from langchain_core.tools import ToolException
+from langchain_core.messages import ToolMessage
 
 from aero.domain import paths
 from aero.infrastructure.attestation import generate_keypair, sign_manifest_dict
@@ -80,8 +80,15 @@ def test_approved_inventory_release_calls_real_offline_tool(tmp_path, monkeypatc
                 assert actual["dependency_count"] == count
                 assert actual["unpinned_count"] == unpinned
                 assert actual["sha256"] == hashlib.sha256(text.encode()).hexdigest()
-            with pytest.raises(ToolException, match="pip options"):
-                await tools[0].ainvoke({"requirements_text": "-r /etc/passwd"})
+            rejected = await tools[0].ainvoke({
+                "type": "tool_call",
+                "id": "reject-file-inclusion",
+                "name": tools[0].name,
+                "args": {"requirements_text": "-r /etc/passwd"},
+            })
+            assert isinstance(rejected, ToolMessage)
+            assert rejected.status == "error"
+            assert "pip options" in json.dumps(rejected.content)
 
         asyncio.run(asyncio.wait_for(exercise(), timeout=45))
     finally:
