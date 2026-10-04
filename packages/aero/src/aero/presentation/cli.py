@@ -1,662 +1,626 @@
-"""AMX Main CLI Command Parser & Entrypoint for Aero Agent Engine."""
+"""AeroMesh CLI: explicit trust, immutable releases, and bounded execution."""
 
-import sys
-import json
-import hashlib
+from __future__ import annotations
+
 import argparse
-from typing import List
+import dataclasses
+import getpass
+import json
+import os
+import sys
+from importlib.metadata import version, PackageNotFoundError
+from pathlib import Path
 
 from aero.domain.errors import AeroMeshDomainError, ErrorCode, ExitCode
-from aero.domain.paths import (
-    get_aeromesh_agents_dir,
-    get_aeromesh_workflows_dir,
-    get_aeromesh_workspace_registry_dir,
-    resolve_agent_manifest_path,
-    resolve_workflow_manifest_path,
-)
-from aero.infrastructure.parser import WorkflowParser
-from aero.services.runner import AeroAgentRunnerService
-from aero.services.discovery import AeroDiscoveryEngine
-from aero.services.workflow_runner import WorkflowExecutionDriver
-from aero.services.workflow_synthesizer import WorkflowSynthesizer
+from aero.domain import paths
+from aero.infrastructure.parser import ManifestParser, WorkflowParser, strict_json
 from aero.services import trust
-from aero.infrastructure import keystore
-from aero.infrastructure.guardian import GuardianSecurityScanner
-from aero.presentation.ui import AeroTerminalUI
+
+VERSION = "0.2.0"
 
 
-def main(args: List[str] = None) -> int:
+def _error(
+    message, code=ErrorCode.AMX_ERR_SCHEMA_VIOLATION, status=ExitCode.SCHEMA_VIOLATION
+):
+    return AeroMeshDomainError(message, code, status)
+
+
+def _json(value):
+    def default(obj):
+        if dataclasses.is_dataclass(obj):
+            return dataclasses.asdict(obj)
+        if isinstance(obj, Path):
+            return str(obj)
+        raise TypeError(type(obj).__name__)
+
+    print(json.dumps(value, indent=2, default=default, allow_nan=False))
+
+
+def _development(args):
+    enabled = getattr(args, "development", False)
+    if enabled:
+        print(
+            "DEVELOPMENT MODE: unsigned artifacts and local tool processes are permitted; host isolation is not provided.",
+            file=sys.stderr,
+        )
+    return enabled
+
+
+def _resolve(target, workflow=False):
+    resolved = (
+        paths.resolve_workflow_manifest_path
+        if workflow
+        else paths.resolve_agent_manifest_path
+    )(target)
+    if resolved is None:
+        raise _error(
+            f"Artifact not found: {target}. Synthesis requires --synthesize --development."
+        )
+    if not Path(target).is_file():
+        expected_id = target.removesuffix(".json")
+        if _read(resolved).get("identity", {}).get("id") != expected_id:
+            raise _error("Catalog reference resolved to a different artifact identity")
+    return resolved
+
+
+def _read(path):
+    from aero.infrastructure.parser import _read_manifest
+
+    return strict_json(_read_manifest(str(path)))
+
+
+def _write_new(path, data):
+    # O_EXCL preserves existing user work; no implicit --force behavior.
+    with Path(path).open("x", encoding="utf-8") as stream:
+        json.dump(data, stream, indent=2, allow_nan=False)
+        stream.write("\n")
+
+
+def _template(artifact_id):
+    paths.validate_artifact_id(artifact_id)
+    return {
+        "manifest_version": "0.2.0",
+        "identity": {
+            "id": artifact_id,
+            "name": artifact_id.replace("-", " ").title(),
+            "version": "1.0.0",
+        },
+        "capabilities": {
+            "domain": "General",
+            "tags": [],
+            "short_description": "Describe the agent's bounded task.",
+            "evaluation_trigger": "Manual",
+        },
+        "cognitive_runtime": {
+            "persona": "Answer the user's request using the provided information. State limitations and do not claim actions you did not perform.",
+            "success_criteria": "Provide an answer grounded in the supplied information.",
+            "memory_policy": "NATIVE",
+            "checkpoint_policy": "ON_STEP",
+        },
+        "requirements": {"providers": []},
+        "observability": {
+            "max_execution_steps": 40,
+            "max_model_calls": 20,
+            "max_output_tokens": 4096,
+        },
+    }
+
+
+def _run_arguments(parser, target="target"):
+    parser.add_argument(target)
+    parser.add_argument("intent", nargs="?", default=None)
+    parser.add_argument("--development", action="store_true")
+    parser.add_argument(
+        "--synthesize",
+        action="store_true",
+        help="Explicitly author a new tool-free draft (requires development mode)",
+    )
+    parser.add_argument("--non-interactive", action="store_true")
+    parser.add_argument(
+        "--input-json",
+        action="store_true",
+        help="Parse intent as structured JSON input",
+    )
+    parser.add_argument(
+        "--json", action="store_true", help="Emit execution data as JSON"
+    )
+    parser.add_argument(
+        "--diagnostics", action="store_true", help="Include actual execution metadata"
+    )
+
+
+def _arguments():
     parser = argparse.ArgumentParser(
-        prog="amx", description="Aero Autonomous Agent Engine (AMX CLI)"
+        prog="amx", description="Approved agent releases on Deep Agents"
     )
-    subparsers = parser.add_subparsers(dest="command", help="CLI Subcommands")
-
-    # Command: amx search "<intent>"
-    search_parser = subparsers.add_parser(
-        "search", help="Search the 2-Tier Agent Registry Index"
+    sub = parser.add_subparsers(dest="command", required=True)
+    sub.add_parser("version")
+    p = sub.add_parser("init")
+    p.add_argument("agent_id")
+    p.add_argument("--output")
+    p = sub.add_parser("validate")
+    p.add_argument("manifest")
+    p = sub.add_parser("keygen")
+    p.add_argument("--name", default="default")
+    p = sub.add_parser(
+        "trust",
+        help="Explicitly approve an artifact signing key in this user's trust store",
     )
-    search_parser.add_argument(
-        "intent", help="Natural language intent or keyword search query"
+    p.add_argument("artifact_id")
+    p.add_argument("public_key")
+    p = sub.add_parser("sign")
+    p.add_argument("manifest")
+    p.add_argument("--key", default="default")
+    p = sub.add_parser("verify")
+    p.add_argument("manifest")
+    p.add_argument("--signature-only", action="store_true")
+    p = sub.add_parser("revoke")
+    p.add_argument("artifact_id")
+    p = sub.add_parser("install")
+    p.add_argument("manifest")
+    p.add_argument("--development", action="store_true")
+    p = sub.add_parser("share")
+    p.add_argument("manifest")
+    p = sub.add_parser("run")
+    _run_arguments(p)
+    p.add_argument("--replay")
+    sub.add_parser("history")
+    sub.add_parser(
+        "doctor",
+        help="Report installed versions and isolation availability without making model calls",
     )
-
-    # Command: amx audit <manifest_file>
-    audit_parser = subparsers.add_parser(
-        "audit",
-        help="Run static security scan and SHA-256 attestation audit on a manifest",
+    p = sub.add_parser(
+        "preflight",
+        help="Validate local configuration, trust, and execution requirements",
     )
-    audit_parser.add_argument("manifest", help="Path to DAM v0.1 agent.json file")
-
-    # Command: amx export-bundle <manifest_file>
-    export_parser = subparsers.add_parser(
-        "export-bundle",
-        help="Export an Ed25519-signed attestation bundle for a manifest",
-    )
-    export_parser.add_argument("manifest", help="Path to DAM v0.1 agent.json file")
-
-    # Command: amx run <manifest_file> "<intent>" [--diagnostics] [--non-interactive] [--replay <session_id>]
-    run_parser = subparsers.add_parser(
-        "run", help="Run a manifest, agent ID, or a natural-language goal"
-    )
-    run_parser.add_argument(
-        "manifest", help="Path / agent ID, or a natural-language goal (JIT synthesis)"
-    )
-    run_parser.add_argument(
-        "intent", nargs="?", default=None, help="User intent string"
-    )
-    run_parser.add_argument(
-        "--non-interactive", action="store_true", help="Fail if vault keys missing"
-    )
-    run_parser.add_argument(
-        "--diagnostics",
+    p.add_argument("target")
+    p.add_argument("--development", action="store_true")
+    p.add_argument(
+        "--probe-tools",
         action="store_true",
-        help="Emit real-time OTel diagnostic metrics",
+        help="Connect to declared MCP tools (may start an approved container)",
     )
-    run_parser.add_argument(
-        "--replay", help="Resume a previous session by session ID (continue its thread)"
-    )
-
-    # Command: amx init <agent_id>
-    init_parser = subparsers.add_parser(
-        "init", help="Scaffold a new DAM v0.1 boilerplate agent.json manifest"
-    )
-    init_parser.add_argument("agent_id", help="ID/Name of the new agent manifest")
-
-    # Command: amx history
-    subparsers.add_parser(
-        "history", help="List past run sessions (resumable via `amx run --replay`)"
-    )
-
-    # Command: amx vault <subcommand>
-    vault_parser = subparsers.add_parser(
-        "vault", help="Inspect and audit security vault credentials"
-    )
-    vault_subparsers = vault_parser.add_subparsers(
-        dest="vault_command", help="Vault Subcommands"
-    )
-    v_check = vault_subparsers.add_parser(
-        "check", help="Check credential status for an agent manifest"
-    )
-    v_check.add_argument("manifest", help="Path to DAM v0.1 agent.json file")
-
-    v_set = vault_subparsers.add_parser(
-        "set", help="Store a secret in the encrypted OS keyring"
-    )
-    v_set.add_argument("key", help="Credential key name (e.g. DB_CONNECT_STRING)")
-    v_set.add_argument("value", help="Secret value to store")
-
-    # Command: amx workflow <subcommand>
-    wf_parser = subparsers.add_parser(
-        "workflow", help="Declarative Mesh Workflow (DWM) commands"
-    )
-    wf_subparsers = wf_parser.add_subparsers(
-        dest="workflow_command", help="Workflow subcommands"
-    )
-    wf_init = wf_subparsers.add_parser(
-        "init", help="Scaffold a new DWM workflow manifest"
-    )
-    wf_init.add_argument("workflow_id", help="ID/name of the new workflow")
-
-    wf_sign = wf_subparsers.add_parser(
-        "sign", help="Sign a workflow with an Ed25519 key (writes .sig sidecar)"
-    )
-    wf_sign.add_argument("workflow", help="Path to DWM workflow.json file")
-    wf_sign.add_argument("--key", default=None, help="Key name (default: 'default')")
-
-    wf_verify = wf_subparsers.add_parser(
-        "verify", help="Verify a workflow's Ed25519 signature"
-    )
-    wf_verify.add_argument("workflow", help="Path to DWM workflow.json file")
-
-    wf_install = wf_subparsers.add_parser(
-        "install", help="Install + verify a workflow and its referenced agents"
-    )
-    wf_install.add_argument("workflow", help="Path to DWM workflow.json file")
-    wf_install.add_argument(
-        "--insecure", action="store_true", help="Skip trust verification"
-    )
-
-    wf_run = wf_subparsers.add_parser(
-        "run", help="Run a workflow (or synthesize one from a natural-language goal)"
-    )
-    wf_run.add_argument("workflow", help="Path / workflow ID, or a goal to synthesize")
-    wf_run.add_argument("intent", nargs="?", default=None, help="User intent string")
-    wf_run.add_argument(
-        "--non-interactive", action="store_true", help="Fail if vault keys missing"
-    )
-
-    wf_share = wf_subparsers.add_parser(
-        "share", help="Generate a signed registry payload for a workflow"
-    )
-    wf_share.add_argument("workflow", help="Path to DWM workflow.json file")
-
-    wf_revoke = wf_subparsers.add_parser(
-        "revoke", help="Revoke a workflow's trusted signing key"
-    )
-    wf_revoke.add_argument("workflow_id", help="Workflow id whose key to revoke")
-
-    # Command: amx validate <manifest_file>
-    val_parser = subparsers.add_parser(
-        "validate", help="Validate a DAM v0.1 agent.json file"
-    )
-    val_parser.add_argument("manifest", help="Path to DAM v0.1 agent.json file")
-
-    # Command: amx install <manifest_file>
-    inst_parser = subparsers.add_parser(
-        "install",
-        help="Install an agent manifest into local store (~/.aeromesh/agents/)",
-    )
-    inst_parser.add_argument("manifest", help="Path to DAM v0.1 agent.json file")
-    inst_parser.add_argument(
-        "--insecure",
+    p = sub.add_parser("search")
+    p.add_argument("intent")
+    sub.add_parser("index")
+    for name in ("audit", "lint", "export-bundle"):
+        p = sub.add_parser(
+            name, help="Static manifest lint; not a security certification"
+        )
+        p.add_argument("manifest")
+    p = sub.add_parser("vault")
+    vs = p.add_subparsers(dest="vault_command", required=True)
+    v = vs.add_parser("set")
+    v.add_argument("key")
+    v.add_argument(
+        "--stdin",
         action="store_true",
-        help="Skip Ed25519 trust verification for marketplace agents",
+        help="Read secret from stdin instead of an interactive hidden prompt",
     )
+    v = vs.add_parser("check")
+    v.add_argument("manifest")
+    p = sub.add_parser("workflow")
+    ws = p.add_subparsers(dest="workflow_command", required=True)
+    v = ws.add_parser("init")
+    v.add_argument("workflow_id")
+    for name in ("sign", "verify", "install", "share"):
+        v = ws.add_parser(name)
+        v.add_argument("workflow")
+        if name == "sign":
+            v.add_argument("--key", default="default")
+        if name == "verify":
+            v.add_argument("--signature-only", action="store_true")
+        if name == "install":
+            v.add_argument("--development", action="store_true")
+    v = ws.add_parser("revoke")
+    v.add_argument("artifact_id")
+    v = ws.add_parser("run")
+    _run_arguments(v, "workflow")
+    p = sub.add_parser("release")
+    rs = p.add_subparsers(dest="release_command", required=True)
+    v = rs.add_parser("build")
+    v.add_argument("target")
+    v.add_argument("--output", required=True)
+    v = rs.add_parser("diff")
+    v.add_argument("old")
+    v.add_argument("new")
+    v = rs.add_parser("approve")
+    v.add_argument("release")
+    v.add_argument("--policy", required=True)
+    v = rs.add_parser("run")
+    _run_arguments(v, "release")
+    return parser
 
-    # Command: amx share <manifest_file>
-    share_parser = subparsers.add_parser(
-        "share",
-        help="Share a local agent manifest by generating a signed registry payload",
-    )
-    share_parser.add_argument("manifest", help="Path to DAM v0.1 agent.json file")
 
-    # Command: amx keygen [--name <key>]
-    keygen_parser = subparsers.add_parser(
-        "keygen", help="Generate an Ed25519 signing keypair for agent attestation"
-    )
-    keygen_parser.add_argument("--name", default=None, help="Key name (default: 'default')")
-
-    # Command: amx sign <manifest_file> [--key <key>]
-    sign_parser = subparsers.add_parser(
-        "sign", help="Sign an agent manifest with an Ed25519 key (writes .sig sidecar)"
-    )
-    sign_parser.add_argument("manifest", help="Path to DAM v0.1 agent.json file")
-    sign_parser.add_argument("--key", default=None, help="Key name (default: 'default')")
-
-    # Command: amx verify <manifest_file>
-    verify_parser = subparsers.add_parser(
-        "verify", help="Verify an agent manifest's Ed25519 signature"
-    )
-    verify_parser.add_argument("manifest", help="Path to DAM v0.1 agent.json file")
-
-    # Command: amx revoke <agent_id>
-    revoke_parser = subparsers.add_parser(
-        "revoke", help="Revoke an agent's trusted signing key"
-    )
-    revoke_parser.add_argument("agent_id", help="Agent id whose key to revoke")
-
-    # Command: amx index
-    subparsers.add_parser(
-        "index", help="Rebuild registry/index.json from registry/agents/"
-    )
-
-    # Command: amx version
-    subparsers.add_parser("version", help="Show Aero Agent Engine version")
-
-    parsed = parser.parse_args(args)
-
-    if parsed.command == "workflow":
-        return _handle_workflow(parsed)
-
-    if parsed.command == "version":
-        print("aero / amx version 0.1.0 (DAM v0.1 · DWM v0.1)")
-        return 0
-
-    if parsed.command == "index":
-        import datetime
-
-        entries = AeroDiscoveryEngine().build_workspace_index()
-        index_path = get_aeromesh_workspace_registry_dir().parent / "index.json"
-        payload = {
-            "index_version": "1.0.0",
-            "generated_at": datetime.datetime.now(
-                datetime.timezone.utc
-            ).isoformat(),
-            "agents": entries,
+def _verify(path, signature_only=False):
+    if signature_only:
+        ok, reason = trust.verify_manifest_file(str(path))
+    else:
+        data = trust.require_trusted_manifest(str(path))
+        ok, reason = True, f"trusted signature valid for {data['identity']['id']}"
+    _json(
+        {
+            "verified": ok,
+            "scope": "signature_only" if signature_only else "trusted_signer",
+            "reason": reason,
         }
-        index_path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
-        print(f"📇 Wrote registry index ({len(entries)} agents) to {index_path}")
-        return 0
+    )
+    return 0 if ok else 22
 
-    if parsed.command == "keygen":
-        name = getattr(parsed, "name", None) or keystore.DEFAULT_KEY_NAME
-        priv_path, pub_path = trust.generate_and_store_keypair(name)
-        print(f"🔑 Generated Ed25519 keypair '{name}':")
-        print(f"  Private: {priv_path}")
-        print(f"  Public:  {pub_path}")
-        return 0
 
-    if parsed.command == "sign":
-        try:
-            key_name = getattr(parsed, "key", None) or keystore.DEFAULT_KEY_NAME
-            attestation = trust.sign_manifest_file(parsed.manifest, key_name)
-            print(f"✍️  Signed '{parsed.manifest}' (Ed25519):")
-            print(f"  SHA-256: {attestation['sha256']}")
-            print(f"  Sidecar: {parsed.manifest}.sig")
-            return 0
-        except Exception as e:
-            AeroTerminalUI.render_error(str(e))
-            return 10
+def _install(target, *, development=False, workflow=False):
+    source = _resolve(target, workflow)
+    data = _read(source) if development else trust.require_trusted_manifest(str(source))
+    parser = WorkflowParser() if workflow else ManifestParser()
+    manifest = parser.validate_dict(data)
+    if workflow and not development:
+        from aero.services.workflow_runner import WorkflowExecutionDriver
 
-    if parsed.command == "verify":
-        try:
-            ok, reason = trust.verify_manifest_file(parsed.manifest)
-            if ok:
-                print(f"✅ Manifest '{parsed.manifest}' signature valid ({reason}).")
-                return 0
-            print(f"❌ Manifest '{parsed.manifest}' NOT verified: {reason}.")
-            return 1
-        except Exception as e:
-            AeroTerminalUI.render_error(str(e))
-            return 10
-
-    if parsed.command == "revoke":
-        if trust.revoke_key(parsed.agent_id):
-            print(f"🚫 Revoked trusted key for '{parsed.agent_id}'.")
-            return 0
-        print(f"⚠️  No trusted key found for '{parsed.agent_id}'.")
-        return 1
-
-    if parsed.command == "search":
-        discovery = AeroDiscoveryEngine()
-        results = discovery.search(parsed.intent)
-        AeroTerminalUI.render_search_results(results)
-        return 0
-
-    if parsed.command == "audit":
-        try:
-            with open(parsed.manifest, "r", encoding="utf-8") as f:
-                content = f.read()
-            scanner = GuardianSecurityScanner()
-            audit_res = scanner.scan_manifest_content(content)
-            AeroTerminalUI.render_security_audit(audit_res)
-            return 0 if audit_res.get("is_secure") else 1
-        except Exception as e:
-            AeroTerminalUI.render_error(str(e))
-            return 10
-
-    if parsed.command == "export-bundle":
-        try:
-            with open(parsed.manifest, "r", encoding="utf-8") as f:
-                content = f.read()
-            scanner = GuardianSecurityScanner()
-            bundle = scanner.export_bundle(content)
-            print(f"📦 Exported Attestation Bundle for '{bundle['agent_id']}':")
-            print(f"  Attestation: {bundle['attestation']}")
-            print(f"  Status: {'SECURE ✅' if bundle['is_secure'] else 'WARNING ⚠️'}")
-            return 0
-        except Exception as e:
-            AeroTerminalUI.render_error(str(e))
-            return 10
-
-    runner = AeroAgentRunnerService()
-
-    if parsed.command == "init":
-        file_name = f"{parsed.agent_id}.agent.json"
-        template = {
-            "manifest_version": "0.1.0",
-            "identity": {
-                "id": parsed.agent_id,
-                "name": parsed.agent_id.replace("-", " ").title(),
-                "version": "1.0.0",
-            },
-            "capabilities": {
-                "domain": "Custom",
-                "tags": ["custom"],
-                "short_description": "Scaffolded agent",
-                "evaluation_trigger": "Manual",
-            },
-            "cognitive_runtime": {"persona": "Assistant", "success_criteria": "Done"},
-            "requirements": {"providers": []},
-        }
-        with open(file_name, "w", encoding="utf-8") as f:
-            json.dump(template, f, indent=2)
-        print(f"✨ Scaffolded boilerplate agent manifest: {file_name}")
-        return 0
-
-    if parsed.command == "history":
-        sessions = runner.list_sessions()
-        if sessions:
-            print(f"📜 Sessions ({len(sessions)}):")
-            for s in sessions:
-                intent = (s.get("intent") or "")[:50]
-                print(f"  • {s['session_id']}  agent={s.get('agent_id')}  \"{intent}\"")
-        else:
-            print("📜 No sessions found (run an agent to create one).")
-        return 0
-
-    if parsed.command == "vault":
-        if parsed.vault_command == "check":
-            try:
-                manifest = runner.parser.parse_file(parsed.manifest)
-                runner.vault.resolve_requirements(
-                    manifest.providers, non_interactive=True
-                )
-                print(
-                    f"🔐 Security Vault Status for '{manifest.identity.id}': ALL REQUIRED CREDENTIALS SATISFIED ✅"
-                )
-                return 0
-            except AeroMeshDomainError as e:
-                AeroTerminalUI.render_error(str(e))
-                return e.exit_code.value
-        elif parsed.vault_command == "set":
-            try:
-                runner.vault.store.set(parsed.key, parsed.value)
-                print(f"🔐 Stored '{parsed.key}' in the encrypted OS keyring.")
-                return 0
-            except Exception as e:
-                AeroTerminalUI.render_error(str(e))
-                return 10
-
-    if parsed.command == "validate":
-        try:
-            manifest = runner.parser.parse_file(parsed.manifest)
-            print(
-                f"✅ Manifest '{manifest.identity.id}' is VALID under DAM v0.1 schema."
-            )
-            return 0
-        except AeroMeshDomainError as e:
-            AeroTerminalUI.render_error(str(e))
-            return e.exit_code.value
-
-    if parsed.command == "install":
-        try:
-            manifest = runner.parser.parse_file(parsed.manifest)
-
-            # Trust gate: if a trusted public key exists for this agent in the
-            # git-registry trust store, the manifest MUST be signed by it.
-            if not parsed.insecure:
-                if trust.trusted_public_key(manifest.identity.id) is not None:
-                    ok, reason = trust.verify_manifest_trusted_file(
-                        parsed.manifest, manifest.identity.id
-                    )
-                    if not ok:
-                        raise AeroMeshDomainError(
-                            f"Refusing to install untrusted agent '{manifest.identity.id}': {reason}. Use --insecure to override.",
-                            ErrorCode.AMX_ERR_SCHEMA_VIOLATION,
-                            ExitCode.SCHEMA_VIOLATION,
-                        )
-
-            agents_dir = get_aeromesh_agents_dir()
-            agents_dir.mkdir(parents=True, exist_ok=True)
-            target_path = agents_dir / f"{manifest.identity.id}.json"
-
-            with open(parsed.manifest, "r", encoding="utf-8") as f_in:
-                content = f_in.read()
-            with open(target_path, "w", encoding="utf-8") as f_out:
-                f_out.write(content)
-            trust.install_attestation(parsed.manifest, str(target_path))
-
-            print(
-                f"📦 Installed agent '{manifest.identity.id}' to local store: {target_path}"
-            )
-            return 0
-        except AeroMeshDomainError as e:
-            AeroTerminalUI.render_error(str(e))
-            return e.exit_code.value
-
-    if parsed.command == "share":
-        try:
-            manifest = runner.parser.parse_file(parsed.manifest)
-            with open(parsed.manifest, "rb") as f:
-                sha256_hash = hashlib.sha256(f.read()).hexdigest()
-
-            payload = {
-                "id": manifest.identity.id,
-                "version": manifest.identity.version,
-                "title": manifest.identity.name,
-                "domain": manifest.capabilities.domain,
-                "tags": manifest.capabilities.tags,
-                "short_description": manifest.capabilities.short_description,
-                "evaluation_trigger": manifest.capabilities.evaluation_trigger,
-                "sha256": sha256_hash,
-                "pull_request_target": f"registry/agents/{manifest.identity.id}.json",
-            }
-
-            # Attach the existing Ed25519 attestation (`.sig` sidecar), if present.
-            payload["attestation"] = trust.load_attestation(parsed.manifest)
-
-            print(f"🚀 Registry Share Payload for '{manifest.identity.id}':")
-            print(json.dumps(payload, indent=2))
-            return 0
-        except AeroMeshDomainError as e:
-            AeroTerminalUI.render_error(str(e))
-            return e.exit_code.value
-
-    if parsed.command == "run":
-        try:
-            if parsed.replay:
-                res = runner.run_manifest_file(
-                    parsed.manifest,
-                    parsed.intent,
-                    non_interactive=parsed.non_interactive,
-                    enable_diagnostics=parsed.diagnostics,
-                    replay_session_id=parsed.replay,
-                )
-                if res.get("is_resumed"):
-                    agent = res["manifest"].identity.id
-                    print(
-                        f"🔄 [RESUME] Session '{res.get('session_id')}' (Agent: {agent})"
-                    )
-                AeroTerminalUI.render_result(
-                    res.get("execution_result", {}).get("verified_result", "Resumed.")
-                )
-                return 0
-
-            # Resolvable manifest / agent id → direct execution (no provider preflight).
-            resolved = resolve_agent_manifest_path(parsed.manifest)
-            if resolved:
-                res = runner.run_manifest_file(
-                    str(resolved),
-                    parsed.intent or parsed.manifest,
-                    non_interactive=parsed.non_interactive,
-                    enable_diagnostics=parsed.diagnostics,
-                )
-                if "manifest" in res:
-                    AeroTerminalUI.render_agent_banner(res["manifest"])
-                if res.get("diagnostics"):
-                    AeroTerminalUI.render_diagnostics(res["diagnostics"])
-                exec_res = res.get("execution_result", {})
-                verified = (
-                    exec_res.get("verified_result", "Completed successfully.")
-                    if isinstance(exec_res, dict)
-                    else str(exec_res)
-                )
-                AeroTerminalUI.render_result(verified)
-                return 0
-
-            # Not a resolvable manifest → treat as a natural-language goal (JIT synthesis).
-            from aero.services.orchestrator import AeroMasterOrchestrator
-
-            orchestrator = AeroMasterOrchestrator()
-            res = orchestrator.dispatch(
-                parsed.manifest,
-                intent=parsed.intent,
-                non_interactive=parsed.non_interactive,
-                enable_diagnostics=parsed.diagnostics,
-            )
-
-            result = res.get("result", {})
-            if "manifest" in result:
-                AeroTerminalUI.render_agent_banner(result["manifest"])
-            exec_res = result.get("execution_result", {})
-            verified = (
-                exec_res.get("verified_result", "Completed successfully.")
-                if isinstance(exec_res, dict)
-                else str(exec_res)
-            )
-            AeroTerminalUI.render_result(verified)
-            return 0
-        except AeroMeshDomainError as e:
-            AeroTerminalUI.render_error(str(e))
-            return e.exit_code.value
-
-    parser.print_help()
+        # Resolve and verify the complete referenced set without model calls.
+        WorkflowExecutionDriver(
+            manifest, manifest_path=str(source), non_interactive=True
+        ).preflight()
+    target_dir = (
+        paths.get_aeromesh_workflows_dir()
+        if workflow
+        else paths.get_aeromesh_agents_dir()
+    )
+    target_dir.mkdir(parents=True, exist_ok=True)
+    dest = target_dir / f"{manifest.identity.id}.json"
+    if source.resolve() != dest.resolve():
+        trust.atomic_write(dest, json.dumps(data, sort_keys=True, indent=2).encode())
+        trust.install_attestation(str(source), str(dest))
+    print(
+        f"Installed {'workflow' if workflow else 'agent'} '{manifest.identity.id}' to {dest}"
+    )
     return 0
 
 
-def _handle_workflow(parsed) -> int:
-    """Dispatch `amx workflow ...` subcommands."""
-    wf_parser = WorkflowParser()
+def _intent(args):
+    value = args.intent if args.intent is not None else "Perform the configured task."
+    if args.input_json:
+        try:
+            return json.loads(
+                value,
+                parse_constant=lambda v: (_ for _ in ()).throw(
+                    ValueError("Non-finite number")
+                ),
+            )
+        except ValueError as exc:
+            raise _error(f"Invalid --input-json: {exc}") from exc
+    return value
 
-    if parsed.workflow_command == "init":
-        wf_id = parsed.workflow_id
-        template = {
-            "workflow_version": "0.1.0",
+
+def _show_run(result, args):
+    if args.json:
+        _json(result)
+    else:
+        execution = result.get("execution_result", result.get("result", result))
+        if isinstance(execution, dict) and "execution_result" in execution:
+            execution = execution["execution_result"]
+        output = (
+            execution.get("verified_result", execution)
+            if isinstance(execution, dict)
+            else execution
+        )
+        print("Result:")
+        print(output if isinstance(output, str) else json.dumps(output, indent=2))
+        print(
+            "Task completion is not independently certified; inspect the result and domain evidence."
+        )
+        session = result.get("session_id") or result.get("execution_id")
+        if session:
+            print(f"Execution: {session}")
+        if args.diagnostics:
+            _json(
+                result.get("diagnostics")
+                or {
+                    k: v
+                    for k, v in execution.items()
+                    if k not in {"verified_result", "output"}
+                }
+            )
+    return 0
+
+
+def _dispatch(args):
+    command = args.command
+    if command == "version":
+        print(f"aero / amx {VERSION} (DAM/DWM 0.2; supported 0.1 subset)")
+        return 0
+    if command == "init":
+        output = args.output or f"{args.agent_id}.agent.json"
+        _write_new(output, _template(args.agent_id))
+        print(f"Created {output}")
+        return 0
+    if command == "validate":
+        data = _read(args.manifest)
+        if "release_version" in data:
+            from aero.services.releases import validate_release
+
+            validate_release(data)
+        else:
+            (
+                WorkflowParser() if "workflow_version" in data else ManifestParser()
+            ).validate_dict(data)
+        print(f"VALID: {data['identity']['id']}")
+        return 0
+    if command == "keygen":
+        private, public = trust.generate_and_store_keypair(args.name)
+        _json({"private_key": str(private), "public_key": str(public)})
+        return 0
+    if command == "trust":
+        _json({"trusted_key": str(trust.trust_key(args.artifact_id, args.public_key))})
+        return 0
+    if command == "sign":
+        _json(trust.sign_manifest_file(args.manifest, args.key))
+        return 0
+    if command == "verify":
+        return _verify(args.manifest, args.signature_only)
+    if command == "revoke":
+        ok = trust.revoke_key(args.artifact_id)
+        _json({"revoked": ok, "artifact_id": args.artifact_id})
+        return 0 if ok else 22
+    if command == "install":
+        return _install(args.manifest, development=_development(args))
+    if command == "share":
+        data = trust.require_trusted_manifest(args.manifest)
+        _json(
+            {
+                "identity": data["identity"],
+                "attestation": trust.load_attestation(args.manifest),
+                "instructions": "Publish the manifest and signature together. Recipients must independently approve its signing key.",
+            }
+        )
+        return 0
+    if command == "run":
+        from aero.services.runner import AeroAgentRunnerService
+        from aero.services.orchestrator import AeroMasterOrchestrator
+
+        development = _development(args)
+        if args.replay:
+            if args.synthesize:
+                raise _error("--replay cannot be combined with --synthesize")
+            result = AeroAgentRunnerService().run_manifest_file(
+                args.target,
+                _intent(args),
+                non_interactive=args.non_interactive,
+                enable_diagnostics=args.diagnostics,
+                replay_session_id=args.replay,
+                development=development,
+            )
+        else:
+            result = AeroMasterOrchestrator().dispatch(
+                args.target,
+                args.intent if args.synthesize else _intent(args),
+                non_interactive=args.non_interactive,
+                enable_diagnostics=args.diagnostics,
+                development=development,
+                synthesize=args.synthesize,
+            )
+            result = result.get("result", result)
+        return _show_run(result, args)
+    if command == "history":
+        from aero.services.session import SessionRegistry
+
+        _json(SessionRegistry().list())
+        return 0
+    if command == "doctor":
+        import shutil
+
+        dependencies = {}
+        for name in (
+            "aero",
+            "deepagents",
+            "langchain",
+            "langgraph",
+            "langchain-mcp-adapters",
+        ):
+            try:
+                dependencies[name] = version(name)
+            except PackageNotFoundError:
+                dependencies[name] = None
+        _json(
+            {
+                "version": VERSION,
+                "dependencies": dependencies,
+                "docker_available": bool(shutil.which("docker")),
+                "model_configured": bool(os.environ.get("AEROMESH_MODEL")),
+                "trusted_directory": str(paths.get_aeromesh_trusted_dir()),
+                "networked_production_tools_supported": False,
+            }
+        )
+        return 0
+    if command == "preflight":
+        from aero.services.preflight import preflight
+
+        _json(
+            preflight(
+                args.target,
+                development=_development(args),
+                probe_tools=args.probe_tools,
+            )
+        )
+        return 0
+    if command in {"search", "index"}:
+        from aero.services.discovery import AeroDiscoveryEngine
+
+        discovery = AeroDiscoveryEngine()
+        if command == "search":
+            _json(discovery.search(args.intent))
+        else:
+            _json({"agents": discovery.build_workspace_index()})
+        return 0
+    if command in {"audit", "lint", "export-bundle"}:
+        from aero.infrastructure.guardian import GuardianSecurityScanner
+
+        scanner = GuardianSecurityScanner()
+        raw = Path(args.manifest).read_text(encoding="utf-8")
+        result = (
+            scanner.scan_manifest_content(raw)
+            if command != "export-bundle"
+            else scanner.export_bundle(raw)
+        )
+        _json(result)
+        return 1 if result.get("issues") else 0
+    if command == "vault":
+        from aero.infrastructure.vault import ZeroTrustVaultResolver
+
+        vault = ZeroTrustVaultResolver()
+        if args.vault_command == "set":
+            value = (
+                sys.stdin.readline().rstrip("\r\n")
+                if args.stdin
+                else getpass.getpass(f"Secret for {args.key}: ")
+            )
+            if not value:
+                raise _error("Secret cannot be empty")
+            vault.store.set(args.key, value)
+            print(f"Stored credential {args.key}")
+            return 0
+        manifest = ManifestParser().parse_file(str(_resolve(args.manifest)))
+        resolved = vault.resolve_requirements(manifest.providers, non_interactive=True)
+        _json({"required_credentials_present": sorted(resolved)})
+        return 0
+    if command == "workflow":
+        return _workflow(args)
+    if command == "release":
+        return _release(args)
+    raise _error("Unsupported command")
+
+
+def _workflow(args):
+    command = args.workflow_command
+    if command == "init":
+        paths.validate_artifact_id(args.workflow_id)
+        data = {
+            "workflow_version": "0.2.0",
             "identity": {
-                "id": wf_id,
-                "name": wf_id.replace("-", " ").title(),
+                "id": args.workflow_id,
+                "name": args.workflow_id,
                 "version": "1.0.0",
-                "description": "Describe this workflow",
             },
             "steps": [
                 {
-                    "id": "step-1",
-                    "agent_id": "example-agent",
-                    "intent": "Describe the task",
+                    "id": "answer",
+                    "agent_id": "structured-summary",
+                    "intent": "Summarize the supplied input.",
                     "depends_on": [],
                 }
             ],
-            "output": "step-1",
+            "output": "answer",
         }
-        file_name = f"{wf_id}.workflow.json"
-        with open(file_name, "w", encoding="utf-8") as f:
-            json.dump(template, f, indent=2)
-        print(f"✨ Scaffolded workflow manifest: {file_name}")
+        _write_new(f"{args.workflow_id}.workflow.json", data)
+        print(f"Created {args.workflow_id}.workflow.json")
         return 0
+    if command in {"sign", "verify", "share", "revoke"}:
+        args.command = command
+        if command != "revoke":
+            args.manifest = args.workflow
+        return _dispatch(args)
+    if command == "install":
+        return _install(args.workflow, development=_development(args), workflow=True)
+    if command == "run":
+        from aero.services.workflow_runner import WorkflowExecutionDriver
+        from aero.services.workflow_synthesizer import WorkflowSynthesizer
 
-    if parsed.workflow_command == "sign":
-        key_name = getattr(parsed, "key", None) or keystore.DEFAULT_KEY_NAME
-        try:
-            attestation = trust.sign_manifest_file(parsed.workflow, key_name)
-            print(f"✍️  Signed '{parsed.workflow}' (Ed25519):")
-            print(f"  SHA-256: {attestation['sha256']}")
-            print(f"  Sidecar: {parsed.workflow}.sig")
-            return 0
-        except Exception as e:
-            AeroTerminalUI.render_error(str(e))
-            return 10
-
-    if parsed.workflow_command == "verify":
-        try:
-            ok, reason = trust.verify_manifest_file(parsed.workflow)
-            if ok:
-                print(f"✅ Workflow '{parsed.workflow}' signature valid ({reason}).")
-                return 0
-            print(f"❌ Workflow '{parsed.workflow}' NOT verified: {reason}.")
-            return 1
-        except Exception as e:
-            AeroTerminalUI.render_error(str(e))
-            return 10
-
-    if parsed.workflow_command == "install":
-        try:
-            workflow = wf_parser.parse_file(parsed.workflow)
-            if not parsed.insecure:
-                ok, reason = trust.verify_manifest_trusted_file(
-                    parsed.workflow, workflow.identity.id
+        development = _development(args)
+        if args.synthesize:
+            if not development:
+                raise _error(
+                    "Synthesis runs require --development; review and sign a release for trusted use"
                 )
-                if not ok:
-                    raise AeroMeshDomainError(
-                        f"Refusing to install untrusted workflow "
-                        f"'{workflow.identity.id}': {reason}. Use --insecure to override.",
-                        ErrorCode.AMX_ERR_SCHEMA_VIOLATION,
-                        ExitCode.SCHEMA_VIOLATION,
-                    )
-                ok, reason = trust.verify_workflow_references(workflow)
-                if not ok:
-                    raise AeroMeshDomainError(
-                        f"Refusing to install workflow with unverified agents: "
-                        f"{reason}. Use --insecure to override.",
-                        ErrorCode.AMX_ERR_SCHEMA_VIOLATION,
-                        ExitCode.SCHEMA_VIOLATION,
-                    )
-            wf_dir = get_aeromesh_workflows_dir()
-            wf_dir.mkdir(parents=True, exist_ok=True)
-            target = wf_dir / f"{workflow.identity.id}.json"
-            with open(parsed.workflow, "r", encoding="utf-8") as f_in, open(
-                target, "w", encoding="utf-8"
-            ) as f_out:
-                f_out.write(f_in.read())
-            trust.install_attestation(parsed.workflow, str(target))
-            print(
-                f"📦 Installed workflow '{workflow.identity.id}' to local store: {target}"
+            workflow = WorkflowSynthesizer().synthesize(args.workflow)
+            path = None
+        else:
+            path = _resolve(args.workflow, True)
+            data = (
+                _read(path)
+                if development
+                else trust.require_trusted_manifest(str(path))
             )
-            return 0
-        except AeroMeshDomainError as e:
-            AeroTerminalUI.render_error(str(e))
-            return e.exit_code.value
+            workflow = WorkflowParser().validate_dict(data)
+        driver = WorkflowExecutionDriver(
+            workflow,
+            non_interactive=args.non_interactive,
+            development=development,
+            manifest_path=str(path) if path else None,
+        )
+        return _show_run(driver.execute(_intent(args)), args)
+    raise _error("Unsupported workflow command")
 
-    if parsed.workflow_command == "run":
-        try:
-            resolved = resolve_workflow_manifest_path(parsed.workflow)
-            if resolved:
-                workflow = wf_parser.parse_file(str(resolved))
-            else:
-                workflow = WorkflowSynthesizer().synthesize(parsed.workflow)
 
+def _release(args):
+    from aero.services.releases import (
+        build_release,
+        diff_releases,
+        approve_release,
+        load_approved_release,
+    )
+
+    command = args.release_command
+    if command == "build":
+        _write_new(args.output, build_release(args.target))
+        print(f"Created unsigned release draft {args.output}")
+        return 0
+    if command == "diff":
+        _json(diff_releases(_read(args.old), _read(args.new)))
+        return 0
+    if command == "approve":
+        _json({"approved_release": approve_release(args.release, args.policy)})
+        return 0
+    if command == "run":
+        if args.development or args.synthesize:
+            raise _error(
+                "Approved release execution does not accept development or synthesis flags"
+            )
+        approved = load_approved_release(args.release)
+        if approved.data["entry"]["kind"] == "workflow":
+            from aero.services.workflow_runner import WorkflowExecutionDriver
+
+            manifest = WorkflowParser().validate_dict(approved.entry_data)
             driver = WorkflowExecutionDriver(
-                workflow, non_interactive=parsed.non_interactive
+                manifest,
+                manifest_path=str(approved.entry_path),
+                non_interactive=True,
+                approved_release=approved,
             )
-            result = driver.execute(parsed.intent or parsed.workflow)
-            final = result.get("verified_result")
-            if isinstance(final, dict):
-                final = json.dumps(final, indent=2)
-            AeroTerminalUI.render_result(str(final))
-            return 0
-        except AeroMeshDomainError as e:
-            AeroTerminalUI.render_error(str(e))
-            return e.exit_code.value
+            result = driver.execute(_intent(args))
+        else:
+            from aero.services.runner import AeroAgentRunnerService
 
-    if parsed.workflow_command == "share":
-        try:
-            workflow = wf_parser.parse_file(parsed.workflow)
-            with open(parsed.workflow, "rb") as f:
-                sha256_hash = hashlib.sha256(f.read()).hexdigest()
-            payload = {
-                "id": workflow.identity.id,
-                "version": workflow.identity.version,
-                "title": workflow.identity.name,
-                "steps": [s.id for s in workflow.steps],
-                "sha256": sha256_hash,
-                "pull_request_target": f"registry/workflows/{workflow.identity.id}.json",
-                "attestation": trust.load_attestation(parsed.workflow),
-            }
-            print(f"🚀 Workflow Share Payload for '{workflow.identity.id}':")
-            print(json.dumps(payload, indent=2))
-            return 0
-        except AeroMeshDomainError as e:
-            AeroTerminalUI.render_error(str(e))
-            return e.exit_code.value
+            result = AeroAgentRunnerService().run_manifest_file(
+                str(approved.entry_path),
+                _intent(args),
+                non_interactive=True,
+                enable_diagnostics=args.diagnostics,
+                approved_release=approved,
+            )
+        return _show_run(result, args)
+    raise _error("Unsupported release command")
 
-    if parsed.workflow_command == "revoke":
-        if trust.revoke_key(parsed.workflow_id):
-            print(f"🚫 Revoked trusted key for '{parsed.workflow_id}'.")
-            return 0
-        print(f"⚠️  No trusted key found for '{parsed.workflow_id}'.")
-        return 1
 
-    return 0
+def main(args=None):
+    try:
+        return _dispatch(_arguments().parse_args(args))
+    except AeroMeshDomainError as exc:
+        print(f"Error: {exc}", file=sys.stderr)
+        return int(exc.exit_code)
+    except (OSError, ValueError, KeyError) as exc:
+        print(f"Error: {type(exc).__name__}: {exc}", file=sys.stderr)
+        return 10
+    except KeyboardInterrupt:
+        print("Interrupted", file=sys.stderr)
+        return 130
+    except Exception as exc:
+        # Provider/backend exceptions can include credentials or request bodies.
+        # Return a useful category without leaking arbitrary exception payloads.
+        print(
+            f"Operation failed ({type(exc).__name__}). Check model, keyring, and tool configuration with amx doctor/preflight.",
+            file=sys.stderr,
+        )
+        return 51
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    raise SystemExit(main())

@@ -14,7 +14,7 @@ def _install_agent(agent_id: str, persona: str):
     agents_dir = get_aeromesh_agents_dir()
     agents_dir.mkdir(parents=True, exist_ok=True)
     manifest = {
-        "manifest_version": "0.1.0",
+        "manifest_version": "0.2.0",
         "identity": {"id": agent_id, "name": agent_id, "version": "1.0.0"},
         "capabilities": {
             "domain": "General",
@@ -25,8 +25,14 @@ def _install_agent(agent_id: str, persona: str):
         "cognitive_runtime": {
             "persona": persona,
             "success_criteria": "reply",
+            "checkpoint_policy": "DISABLED",
         },
         "requirements": {"providers": []},
+        "observability": {
+            "max_execution_steps": 8,
+            "max_model_calls": 2,
+            "max_output_tokens": 128,
+        },
     }
     (agents_dir / f"{agent_id}.json").write_text(json.dumps(manifest))
 
@@ -41,7 +47,7 @@ def test_live_workflow_two_steps():
 
     workflow = WorkflowParser().validate_dict(
         {
-            "workflow_version": "0.1.0",
+            "workflow_version": "0.2.0",
             "identity": {"id": "live-wf", "name": "Live WF", "version": "1.0.0"},
             "steps": [
                 {"id": "a", "agent_id": "live-a", "intent": "Reply A"},
@@ -56,7 +62,9 @@ def test_live_workflow_two_steps():
         }
     )
 
-    driver = WorkflowExecutionDriver(workflow)
+    # Local unsigned fixtures are explicit; trust enforcement has offline tests.
+    driver = WorkflowExecutionDriver(workflow, development=True)
     result = driver.execute("run the two steps")
     assert set(result["outputs"].keys()) == {"a", "b"}
-    assert result["verified_result"]
+    assert result["outputs"]["a"].strip() == "A"
+    assert result["verified_result"].strip() == "B"

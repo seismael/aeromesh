@@ -26,3 +26,15 @@ def test_secure_credential_store_roundtrip():
 
     store.delete("API_KEY")
     assert store.get("API_KEY") is None
+
+
+def test_strict_read_distinguishes_unavailable_from_missing():
+    class UnavailableBackend:
+        def get_password(self, service, key):
+            raise RuntimeError("locked keyring")
+
+    store = SecureCredentialStore(backend=UnavailableBackend())
+    assert store.get("key") is None
+    with pytest.raises(RuntimeError, match="locked"):
+        store.get_strict("key")
+    assert SecureCredentialStore(backend=FakeBackend()).get_strict("missing") is None

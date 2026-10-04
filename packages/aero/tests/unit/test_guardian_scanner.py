@@ -19,14 +19,16 @@ HARDCODED_MANIFEST = """{
   "requirements": { "providers": [{ "type": "credential", "id": "ghp_1234567890abcdef" }] }
 }"""
 
+
 def test_guardian_scanner_clean():
     scanner = GuardianSecurityScanner()
     res = scanner.scan_manifest_content(CLEAN_MANIFEST)
-    assert res["is_secure"] is True
-    assert len(res["sha256_attestation"]) == 64
+    assert res["passed_checks"] is True
+    assert len(res["sha256"]) == 64
+
 
 def test_guardian_scanner_hardcoded_key():
     scanner = GuardianSecurityScanner()
     res = scanner.scan_manifest_content(HARDCODED_MANIFEST)
-    assert res["is_secure"] is False
-    assert any("CRITICAL" in i for i in res["issues"])
+    assert res["passed_checks"] is False
+    assert any("credential pattern" in i for i in res["issues"])

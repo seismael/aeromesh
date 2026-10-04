@@ -6,6 +6,8 @@ from aero.domain.errors import AeroMeshDomainError
 from aero.domain.paths import get_aeromesh_agents_dir, get_aeromesh_home
 from aero.services.runner import AeroAgentRunnerService
 
+pytestmark = pytest.mark.usefixtures("offline_runtime")
+
 MANIFEST_TEXT = """{
   "manifest_version": "0.1.0",
   "identity": { "id": "test-replay-agent", "name": "Replay Agent", "version": "1.0.0" },
@@ -31,7 +33,7 @@ def test_runner_session_persists_and_resumes(tmp_path):
 
     runner = AeroAgentRunnerService()
     res1 = runner.run_manifest_file(
-        str(fpath), "Run initial execution pass", non_interactive=True
+        str(fpath), "Run initial execution pass", non_interactive=True, development=True
     )
     session_id = res1["session_id"]
     assert session_id
@@ -47,7 +49,7 @@ def test_runner_session_persists_and_resumes(tmp_path):
 
     # Resume continues the same thread (same session/thread id, same agent).
     res2 = runner.run_manifest_file(
-        str(fpath), "Follow up", replay_session_id=session_id
+        str(fpath), "Follow up", replay_session_id=session_id, development=True
     )
     assert res2.get("is_resumed") is True
     assert res2["session_id"] == session_id
@@ -68,10 +70,14 @@ def test_runner_resume_from_direct_path_without_install(tmp_path):
     # NOTE: do not install the agent to the store.
 
     runner = AeroAgentRunnerService()
-    res1 = runner.run_manifest_file(str(fpath), "go", non_interactive=True)
+    res1 = runner.run_manifest_file(
+        str(fpath), "go", non_interactive=True, development=True
+    )
     session_id = res1["session_id"]
 
-    res2 = runner.run_manifest_file(str(fpath), "again", replay_session_id=session_id)
+    res2 = runner.run_manifest_file(
+        str(fpath), "again", replay_session_id=session_id, development=True
+    )
     assert res2.get("is_resumed") is True
     assert res2["session_id"] == session_id
     assert res2["manifest"].identity.id == "test-replay-agent"

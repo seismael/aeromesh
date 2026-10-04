@@ -1,0 +1,26 @@
+{
+  "workflow_version": "0.2.0",
+  "identity": {
+    "id": "summary-review",
+    "name": "Summarize and review",
+    "version": "1.0.0",
+    "description": "Tool-free example DAG; final assessment remains advisory."
+  },
+  "steps": [
+    {
+      "id": "summarize",
+      "agent_id": "structured-summary",
+      "intent": "Summarize the original workflow input.",
+      "depends_on": []
+    },
+    {
+      "id": "review",
+      "agent_id": "review-summary",
+      "intent": "Compare the original workflow input with the summarize dependency output.",
+      "depends_on": [
+        "summarize"
+      ]
+    }
+  ],
+  "output": "review"
+}

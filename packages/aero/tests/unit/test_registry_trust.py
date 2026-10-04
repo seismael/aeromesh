@@ -1,39 +1,73 @@
-"""End-to-end trust test over the committed registry (real signed artifacts).
+"""Shipped examples are drafts, and signer approval belongs to the consumer."""
 
-These tests assert that every manifest shipped in ``registry/`` is actually
-signed and trusted — no fakes, no mocks — and that workflows reference only
-verified agents. If the registry ever falls out of sync with its signatures,
-these fail.
-"""
+import json
+from pathlib import Path
 
 from aero.domain.paths import (
+    get_aeromesh_agents_dir,
     get_aeromesh_workspace_registry_dir,
     get_aeromesh_workspace_workflows_dir,
+    get_aeromesh_workspace_trusted_dir,
 )
+from aero.infrastructure.attestation import generate_keypair, sign_manifest_dict
 from aero.infrastructure.parser import ManifestParser, WorkflowParser
 from aero.services import trust
 
 
-def test_registry_agents_are_signed_and_trusted():
-    parser = ManifestParser()
-    files = sorted(get_aeromesh_workspace_registry_dir().glob("*.json"))
-    assert files, "expected agent manifests in registry/agents"
-    for f in files:
-        agent_id = parser.parse_file(str(f)).identity.id
-        ok, reason = trust.verify_manifest_trusted_file(str(f), agent_id)
-        assert ok, f"agent '{agent_id}' not trusted: {reason}"
+def test_registry_examples_are_valid_unsigned_drafts():
+    groups = [
+        (get_aeromesh_workspace_registry_dir(), ManifestParser()),
+        (get_aeromesh_workspace_workflows_dir(), WorkflowParser()),
+    ]
+    for directory, parser in groups:
+        files = sorted(directory.glob("*.json"))
+        assert files, f"expected draft examples in {directory}"
+        for path in files:
+            artifact = parser.parse_file(str(path))
+            assert trust.load_attestation(path) is None
+            assert trust.trusted_public_key(artifact.identity.id) is None
+            ok, _ = trust.verify_manifest_trusted_file(path, artifact.identity.id)
+            assert not ok, "Shipped drafts must require consumer approval"
+    assert not list(get_aeromesh_workspace_trusted_dir().glob("*.pub"))
 
 
-def test_registry_workflows_are_signed_and_references_verified():
-    parser = WorkflowParser()
-    files = sorted(get_aeromesh_workspace_workflows_dir().glob("*.json"))
-    assert files, "expected workflow manifests in registry/workflows"
-    for f in files:
-        workflow = parser.parse_file(str(f))
-        ok, reason = trust.verify_manifest_trusted_file(str(f), workflow.identity.id)
-        assert ok, f"workflow '{workflow.identity.id}' not trusted: {reason}"
-        ok, reason = trust.verify_workflow_references(workflow)
-        assert ok, f"workflow '{workflow.identity.id}' has unverified refs: {reason}"
+def test_user_approved_workflow_and_references_verify(tmp_path):
+    private, public = generate_keypair()
+    public_path = tmp_path / "author.pub"
+    public_path.write_bytes(public)
+    drafts = list(get_aeromesh_workspace_registry_dir().glob("*.json"))
+    assert drafts
+    agent = ManifestParser().parse_file(str(drafts[0]))
+    data = json.loads(drafts[0].read_text())
+    installed = get_aeromesh_agents_dir() / f"{agent.identity.id}.json"
+    installed.parent.mkdir(parents=True, exist_ok=True)
+    installed.write_text(json.dumps(data))
+    Path(str(installed) + ".sig").write_text(
+        json.dumps(sign_manifest_dict(data, private))
+    )
+    trust.trust_key(agent.identity.id, public_path)
+
+    workflow_data = {
+        "workflow_version": "0.1.0",
+        "identity": {
+            "id": "locally-approved-workflow",
+            "name": "Approved",
+            "version": "1.0.0",
+        },
+        "steps": [{"id": "one", "agent_id": agent.identity.id, "intent": "Summarize"}],
+    }
+    workflow_path = tmp_path / "workflow.json"
+    workflow_path.write_text(json.dumps(workflow_data))
+    Path(str(workflow_path) + ".sig").write_text(
+        json.dumps(sign_manifest_dict(workflow_data, private))
+    )
+    trust.trust_key("locally-approved-workflow", public_path)
+    verified = trust.require_trusted_manifest(
+        workflow_path, "locally-approved-workflow"
+    )
+    workflow = WorkflowParser().validate_dict(verified)
+    ok, reason = trust.verify_workflow_references(workflow)
+    assert ok, reason
 
 
 def test_install_attestation_preserves_sidecar(tmp_path):
@@ -42,9 +76,6 @@ def test_install_attestation_preserves_sidecar(tmp_path):
     (tmp_path / "agent.json.sig").write_text('{"x": 1}', encoding="utf-8")
     target = tmp_path / "installed.json"
     target.write_text("{}", encoding="utf-8")
-
     trust.install_attestation(str(src), str(target))
-
     sidecar = tmp_path / "installed.json.sig"
-    assert sidecar.exists()
     assert sidecar.read_text(encoding="utf-8") == '{"x": 1}'

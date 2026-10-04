@@ -68,17 +68,8 @@ def test_verify_manifest_trusted_succeeds_with_matching_key(monkeypatch, tmp_pat
     priv_path, pub_path = trust.generate_and_store_keypair("default")
     trust.sign_manifest_file(str(manifest_path))
 
-    # Register the public key in the git-registry trust store
-    trusted_dir = tmp_path / "registry" / "trusted"
-    trusted_dir.mkdir(parents=True)
-    (trusted_dir / "demo-agent.pub").write_bytes(pub_path.read_bytes())
-
-    # Trust service must resolve the trust store relative to registry dir
-    monkeypatch.setattr(
-        trust.paths,
-        "get_aeromesh_workspace_trusted_dir",
-        lambda: trusted_dir,
-    )
+    # Importing a repository or author key never grants implicit approval.
+    trust.trust_key("demo-agent", pub_path)
     ok, reason = trust.verify_manifest_trusted_file(str(manifest_path), "demo-agent")
     assert ok is True
 
@@ -92,16 +83,9 @@ def test_revoke_key_blocks_verification(monkeypatch, tmp_path):
     trust.sign_manifest_file(str(manifest_path))
     pub_key = trust.load_attestation(str(manifest_path))["public_key"]
 
-    trusted_dir = tmp_path / "registry" / "trusted"
-    trusted_dir.mkdir(parents=True)
-    (trusted_dir / "demo-agent.pub").write_text(pub_key, encoding="utf-8")
-    revoked_dir = tmp_path / "registry" / "revoked"
-    monkeypatch.setattr(
-        trust.paths, "get_aeromesh_workspace_trusted_dir", lambda: trusted_dir
-    )
-    monkeypatch.setattr(
-        trust.paths, "get_aeromesh_workspace_revoked_dir", lambda: revoked_dir
-    )
+    public_path = tmp_path / "author.pub"
+    public_path.write_text(pub_key, encoding="utf-8")
+    trust.trust_key("demo-agent", public_path)
 
     ok, _ = trust.verify_manifest_trusted_file(str(manifest_path), "demo-agent")
     assert ok is True

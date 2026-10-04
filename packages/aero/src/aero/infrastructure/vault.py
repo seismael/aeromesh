@@ -1,7 +1,6 @@
 """Zero-Trust Secure Vault Resolver Infrastructure Adapter."""
 
 import os
-import sys
 import json
 from pathlib import Path
 from typing import Dict, List, Union, Callable, Tuple
@@ -23,6 +22,7 @@ class ZeroTrustVaultResolver:
         prompt_fn: Callable[[str, str], str] = None,
         approval_fn: Callable[[str, str, str], Tuple[str, bool]] = None,
         store: SecureCredentialStore = None,
+        allow_legacy_plaintext: bool = False,
     ):
         self.override_env = override_env or {}
         self.config_dir = Path(config_dir) if config_dir else get_aeromesh_home()
@@ -31,47 +31,33 @@ class ZeroTrustVaultResolver:
         self.prompt_fn = prompt_fn
         self.approval_fn = approval_fn
         self.store = store or SecureCredentialStore()
-        self._desktop_tokens_cache = None
+        self.allow_legacy_plaintext = allow_legacy_plaintext
 
     def _load_json_file(self, fpath: Path) -> Dict[str, str]:
         if fpath.exists():
             try:
                 with open(fpath, "r", encoding="utf-8") as f:
-                    return json.load(f)
+                    data = json.load(f)
+                    if isinstance(data, dict):
+                        return {
+                            key: value
+                            for key, value in data.items()
+                            if isinstance(value, str)
+                        }
             except Exception:
                 pass
         return {}
 
     def _save_credential(self, key_id: str, value: str) -> None:
-        """Persist a credential in the OS keyring (encrypted). Falls back to a
-        plaintext file only as a loudly-warned last resort."""
+        """Persist only in the OS keyring; never downgrade storage silently."""
         try:
             self.store.set(key_id, value)
-        except Exception:
-            print(
-                f"[warn] OS keyring unavailable; storing '{key_id}' in plaintext credentials.json",
-                file=sys.stderr,
-            )
-            credentials = self._load_json_file(self.credentials_file)
-            credentials[key_id] = value
-            self.credentials_file.parent.mkdir(parents=True, exist_ok=True)
-            with open(self.credentials_file, "w", encoding="utf-8") as f:
-                json.dump(credentials, f, indent=2)
-
-    def _load_desktop_tokens(self) -> Dict[str, str]:
-        if self._desktop_tokens_cache is None:
-            self._desktop_tokens_cache = {}
-            desktop_path = Path.home() / "Desktop" / "tokens.txt"
-            if desktop_path.exists():
-                try:
-                    with open(desktop_path, "r", encoding="utf-8") as f:
-                        for line in f:
-                            if "=" in line and not line.strip().startswith("#"):
-                                k, v = line.strip().split("=", 1)
-                                self._desktop_tokens_cache[k.strip()] = v.strip()
-                except Exception:
-                    pass
-        return self._desktop_tokens_cache
+        except Exception as exc:
+            raise AeroMeshDomainError(
+                "OS keyring unavailable; credential was not persisted. Configure a secure keyring or supply it through the environment.",
+                ErrorCode.AMX_ERR_VAULT_KEY_MISSING,
+                ExitCode.VAULT_KEY_MISSING,
+            ) from exc
 
     def resolve_requirements(
         self,
@@ -79,11 +65,24 @@ class ZeroTrustVaultResolver:
         non_interactive: bool = False,
     ) -> Dict[str, str]:
         resolved_secrets = {}
-        config_secrets = self._load_json_file(self.config_file)
-        vault_secrets = self._load_json_file(self.credentials_file)
-        desktop_secrets = self._load_desktop_tokens()
+        requested = [
+            provider for provider in providers if provider.type == "credential"
+        ]
+        if not requested:
+            return resolved_secrets
+        # Legacy reads require explicit caller opt-in; desktop harvesting is removed.
+        config_secrets = (
+            self._load_json_file(self.config_file)
+            if self.allow_legacy_plaintext
+            else {}
+        )
+        vault_secrets = (
+            self._load_json_file(self.credentials_file)
+            if self.allow_legacy_plaintext
+            else {}
+        )
 
-        for provider in providers:
+        for provider in requested:
             if provider.type == "credential":
                 key_id = provider.id
                 kind = getattr(provider, "kind", "credential")
@@ -95,7 +94,6 @@ class ZeroTrustVaultResolver:
                     or self.store.get(key_id)
                     or vault_secrets.get(key_id)
                     or config_secrets.get(key_id)
-                    or desktop_secrets.get(key_id)
                 )
 
                 if existing_val:
@@ -150,7 +148,7 @@ class ZeroTrustVaultResolver:
                                 ErrorCode.AMX_ERR_VAULT_KEY_MISSING,
                                 ExitCode.VAULT_KEY_MISSING,
                             )
-                        # Auto-persist to ~/.aeromesh/credentials.json
+                        # Persist only after secure storage succeeds.
                         self._save_credential(key_id, secret_val)
                         resolved_secrets[key_id] = secret_val
 

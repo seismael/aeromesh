@@ -1,32 +1,53 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "$id": "urn:aeromesh:schemas:declarative-workflow:0.1.0",
+  "$id": "urn:aeromesh:schemas:declarative-workflow:0.2.0",
   "title": "AeroMesh Declarative Workflow Manifest (DWM)",
-  "description": "DWM v0.1: a signed DAG of already-verified agents, compiled into a LangGraph StateGraph.",
+  "description": "Explicit dependency DAG of immutable agent references.",
   "type": "object",
-  "required": ["workflow_version", "identity", "steps"],
+  "required": [
+    "workflow_version",
+    "identity",
+    "steps"
+  ],
   "additionalProperties": false,
   "properties": {
     "workflow_version": {
       "type": "string",
-      "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$",
-      "description": "Semantic version of the DWM standard (currently '0.1.0')."
+      "enum": [
+        "0.1.0",
+        "0.2.0"
+      ]
     },
     "identity": {
       "type": "object",
-      "required": ["id", "name", "version"],
+      "required": [
+        "id",
+        "name",
+        "version"
+      ],
       "additionalProperties": false,
       "properties": {
         "id": {
           "type": "string",
-          "pattern": "^[a-z0-9-_]+$",
-          "description": "Unique URL-safe workflow id."
+          "pattern": "^[a-z0-9][a-z0-9_-]{0,127}$"
         },
-        "name": { "type": "string", "maxLength": 100 },
-        "version": { "type": "string", "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$" },
-        "author": { "type": "string" },
-        "license": { "type": "string" },
-        "description": { "type": "string" }
+        "name": {
+          "type": "string",
+          "maxLength": 100
+        },
+        "version": {
+          "type": "string",
+          "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"
+        },
+        "author": {
+          "type": "string"
+        },
+        "license": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        }
       }
     },
     "steps": {
@@ -34,15 +55,40 @@
       "minItems": 1,
       "items": {
         "type": "object",
-        "required": ["id", "agent_id", "intent"],
+        "required": [
+          "id",
+          "agent_id",
+          "intent"
+        ],
         "additionalProperties": false,
         "properties": {
-          "id": { "type": "string", "pattern": "^[a-z0-9-_]+$" },
-          "agent_id": { "type": "string", "description": "Reference to a verified DAM agent." },
-          "intent": { "type": "string", "description": "Task for this step; {step_id} placeholders inject upstream results." },
-          "depends_on": { "type": "array", "items": { "type": "string" } }
+          "id": {
+            "type": "string",
+            "pattern": "^[a-z0-9][a-z0-9_-]{0,127}$"
+          },
+          "agent_id": {
+            "type": "string",
+            "pattern": "^[a-z0-9][a-z0-9_-]{0,127}$"
+          },
+          "intent": {
+            "type": "string",
+            "description": "Task for this step; {step_id} placeholders inject upstream results."
+          },
+          "depends_on": {
+            "type": "array",
+            "uniqueItems": true,
+            "items": {
+              "type": "string",
+              "pattern": "^[a-z0-9][a-z0-9_-]{0,127}$"
+            }
+          },
+          "agent_sha256": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$"
+          }
         }
-      }
+      },
+      "maxItems": 256
     },
     "output": {
       "type": "string",

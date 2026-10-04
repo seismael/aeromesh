@@ -13,6 +13,10 @@ class ExitCode(IntEnum):
     MCP_TIMEOUT = 41
     JIT_BUILD_FAILED = 50
     PROVIDER_FAILED = 51
+    TRUST_VIOLATION = 22
+    POLICY_VIOLATION = 23
+    CONTRACT_VIOLATION = 52
+    BUDGET_EXCEEDED = 53
 
 
 class ErrorCode(str, Enum):
@@ -25,6 +29,10 @@ class ErrorCode(str, Enum):
     AMX_ERR_MCP_TIMEOUT = "AMX_ERR_MCP_TIMEOUT"
     AMX_ERR_JIT_BUILD_FAILED = "AMX_ERR_JIT_BUILD_FAILED"
     AMX_ERR_PROVIDER_FAILED = "AMX_ERR_PROVIDER_FAILED"
+    AMX_ERR_TRUST_VIOLATION = "AMX_ERR_TRUST_VIOLATION"
+    AMX_ERR_POLICY_VIOLATION = "AMX_ERR_POLICY_VIOLATION"
+    AMX_ERR_CONTRACT_VIOLATION = "AMX_ERR_CONTRACT_VIOLATION"
+    AMX_ERR_BUDGET_EXCEEDED = "AMX_ERR_BUDGET_EXCEEDED"
 
 
 class AeroMeshDomainError(Exception):
@@ -34,7 +42,7 @@ class AeroMeshDomainError(Exception):
         super().__init__(message)
         self.message = message
         self.error_code = error_code
-        self.exit_code = exit_code
+        self.exit_code = ExitCode(exit_code)
 
     def __str__(self) -> str:
         return (

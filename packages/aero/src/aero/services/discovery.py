@@ -27,9 +27,7 @@ def _tokenize(text: str) -> List[str]:
 class _BM25:
     """Compact Okapi BM25 scorer (pure Python, no external deps)."""
 
-    def __init__(
-        self, documents: List[List[str]], k1: float = 1.5, b: float = 0.75
-    ):
+    def __init__(self, documents: List[List[str]], k1: float = 1.5, b: float = 0.75):
         self.k1 = k1
         self.b = b
         self.documents = documents
@@ -83,7 +81,7 @@ class SearchResult:
 
 
 class AeroDiscoveryEngine:
-    """Implements 2-Tier Agent Discovery: Tier 1 Fast Sub-5ms Vector/Keyword Search + Tier 2 Cognitive Evaluator."""
+    """Local BM25 lexical retrieval; scores are rankings, not confidence."""
 
     def __init__(self, parser: Optional[ManifestParser] = None):
         self.parser = parser or ManifestParser()
@@ -221,13 +219,12 @@ class AeroDiscoveryEngine:
             return []
 
         scored.sort(key=lambda pair: pair[0], reverse=True)
-        top_score = scored[0][0]
         results: List[SearchResult] = []
         for score, record in scored[:top_k]:
             results.append(
                 SearchResult(
                     record=record,
-                    match_score=round(score / top_score, 4) if top_score else 0.0,
+                    match_score=round(score, 4),
                     search_tier="TIER_1_BM25",
                     rationale=f"BM25 lexical match score {score:.3f}",
                 )

@@ -1,11 +1,11 @@
 [build-system]
-requires = ["hatchling"]
+requires = ["hatchling==1.32.4", "editables==0.5"]
 build-backend = "hatchling.build"
 
 [project]
 name = "aeromesh-sdk"
-version = "0.1.0"
-description = "Embeddable Python SDK for AeroMesh: run declarative, signed, sandboxed agents via Deep Agents"
+version = "0.2.0"
+description = "Embeddable API for approved AeroMesh agent releases and workflows"
 readme = "README.md"
 requires-python = ">=3.11"
 license = "Apache-2.0"
@@ -18,7 +18,7 @@ classifiers = [
     "Topic :: Scientific/Engineering :: Artificial Intelligence",
 ]
 dependencies = [
-    "aero>=0.1.0",
+    "aero>=0.2.0,<0.3",
 ]
 
 [project.urls]
@@ -27,4 +27,7 @@ Repository = "https://github.com/seismael/aeromesh"
 Documentation = "https://github.com/seismael/aeromesh#readme"
 
 [project.optional-dependencies]
-dev = ["pytest"]
+dev = ["pytest>=9.1,<10"]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/aeromesh"]

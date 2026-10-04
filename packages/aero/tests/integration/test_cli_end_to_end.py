@@ -1,99 +1,102 @@
-"""End-to-End Integration Tests for Aero Agent Engine (packages/aero)."""
+"""CLI contracts with real validation/state and an explicitly selected offline model."""
 
 import json
-import os
-import shutil
+
 import pytest
+
+from aero import __version__
+from aero.domain.errors import ExitCode
 from aero.presentation.cli import main
 
-VALID_DAM_V3_MANIFEST = {
-    "manifest_version": "0.1.0",
-    "identity": {
-        "id": "integration-test-agent",
-        "name": "Integration Test PostgreSQL Agent",
-        "version": "1.0.0",
-        "author": "AeroMesh Core Team",
-        "license": "MIT"
-    },
-    "capabilities": {
-        "domain": "Database Engineering",
-        "tags": ["postgres", "test"],
-        "short_description": "Integration test agent for query optimization.",
-        "evaluation_trigger": "Use when running end to end integration tests."
-    },
-    "cognitive_runtime": {
-        "driver": "Driver.LangGraph",
-        "persona": "You are a Database Specialist.",
-        "success_criteria": "Must produce verified SQL DDL optimization scripts."
-    },
-    "requirements": {
-        "providers": [
-            {
-                "type": "mcp",
-                "id": "postgres-mcp",
-                "transport": "stdio",
-                "command": "npx",
-                "args": ["-y", "@modelcontextprotocol/server-postgres"]
-            },
-            {
-                "type": "credential",
-                "id": "TEST_DB_CONNECT_STRING",
-                "kind": "connection_string"
-            }
-        ]
-    }
-}
 
 @pytest.fixture
-def workspace_tmp_dir():
-    """Creates a temporary workspace directory inside packages/aero/tests/scratch."""
-    scratch_dir = os.path.abspath(
-        os.path.join(os.path.dirname(__file__), "..", "scratch")
-    )
-    os.makedirs(scratch_dir, exist_ok=True)
-    yield scratch_dir
-    shutil.rmtree(scratch_dir, ignore_errors=True)
+def manifest_file(tmp_path):
+    data = {
+        "manifest_version": "0.2.0",
+        "identity": {
+            "id": "integration-agent",
+            "name": "CLI integration",
+            "version": "1.0.0",
+        },
+        "capabilities": {
+            "domain": "Test",
+            "tags": [],
+            "short_description": "CLI integration fixture",
+            "evaluation_trigger": "manual",
+        },
+        "cognitive_runtime": {
+            "persona": "Answer the supplied task.",
+            "success_criteria": "Checked by external assertions.",
+            "checkpoint_policy": "DISABLED",
+        },
+        "requirements": {"providers": []},
+    }
+    path = tmp_path / "agent.json"
+    path.write_text(json.dumps(data), encoding="utf-8")
+    return path
+
 
 def test_amx_version_command(capsys):
-    exit_code = main(["version"])
-    assert exit_code == 0
-    captured = capsys.readouterr()
-    assert "aero / amx version 0.1.0" in captured.out
+    assert main(["version"]) == 0
+    assert f"aero / amx {__version__}" in capsys.readouterr().out
 
-def test_amx_validate_command_success(workspace_tmp_dir):
-    manifest_file = os.path.join(workspace_tmp_dir, "valid_agent.json")
-    with open(manifest_file, "w", encoding="utf-8") as f:
-        json.dump(VALID_DAM_V3_MANIFEST, f)
 
-    exit_code = main(["validate", manifest_file])
-    assert exit_code == 0
+def test_amx_validate_command_success(manifest_file):
+    assert main(["validate", str(manifest_file)]) == 0
 
-def test_amx_validate_command_schema_error(workspace_tmp_dir):
-    invalid_manifest = VALID_DAM_V3_MANIFEST.copy()
-    invalid_manifest.pop("manifest_version")  # Missing required field
-    manifest_file = os.path.join(workspace_tmp_dir, "invalid_agent.json")
-    with open(manifest_file, "w", encoding="utf-8") as f:
-        json.dump(invalid_manifest, f)
 
-    exit_code = main(["validate", manifest_file])
-    assert exit_code == 10  # ExitCode.SCHEMA_VIOLATION
+def test_amx_validate_command_schema_error(manifest_file):
+    data = json.loads(manifest_file.read_text())
+    del data["manifest_version"]
+    manifest_file.write_text(json.dumps(data))
+    assert main(["validate", str(manifest_file)]) == ExitCode.SCHEMA_VIOLATION
 
-def test_amx_run_command_end_to_end_success(workspace_tmp_dir, monkeypatch):
-    manifest_file = os.path.join(workspace_tmp_dir, "valid_agent.json")
-    with open(manifest_file, "w", encoding="utf-8") as f:
-        json.dump(VALID_DAM_V3_MANIFEST, f)
 
-    monkeypatch.setenv("TEST_DB_CONNECT_STRING", "postgresql://user:pass@localhost:5432/testdb")
+def test_amx_explicit_development_execution(manifest_file, offline_runtime, capsys):
+    assert (
+        main(
+            [
+                "run",
+                str(manifest_file),
+                "Describe the result",
+                "--development",
+                "--non-interactive",
+                "--json",
+            ]
+        )
+        == 0
+    )
+    result = json.loads(capsys.readouterr().out)
+    execution = result["execution_result"]
+    assert execution["execution_success"] is True
+    assert execution["verified_result"] == offline_runtime.response
+    assert execution["success_criteria_met"] is None
+    assert result["receipt"]["development"] is True
 
-    exit_code = main(["run", manifest_file, "Optimize query SELECT * FROM users", "--non-interactive"])
-    assert exit_code == 0
 
-def test_amx_run_command_missing_vault_key_failure(workspace_tmp_dir, monkeypatch):
-    manifest_file = os.path.join(workspace_tmp_dir, "valid_agent.json")
-    with open(manifest_file, "w", encoding="utf-8") as f:
-        json.dump(VALID_DAM_V3_MANIFEST, f)
+def test_amx_unsigned_execution_fails_closed(manifest_file):
+    assert (
+        main(["run", str(manifest_file), "Describe the result", "--non-interactive"])
+        == ExitCode.TRUST_VIOLATION
+    )
 
-    monkeypatch.delenv("TEST_DB_CONNECT_STRING", raising=False)
 
-    exit_code = main(["run", manifest_file, "Optimize query", "--non-interactive"])
-    assert exit_code == 20  # ExitCode.VAULT_KEY_MISSING
+def test_amx_run_command_missing_vault_key_failure(manifest_file, monkeypatch):
+    data = json.loads(manifest_file.read_text())
+    data["requirements"]["providers"] = [
+        {"type": "credential", "id": "TEST_INTEGRATION_CREDENTIAL"}
+    ]
+    manifest_file.write_text(json.dumps(data))
+    monkeypatch.delenv("TEST_INTEGRATION_CREDENTIAL", raising=False)
+    assert (
+        main(
+            [
+                "run",
+                str(manifest_file),
+                "Describe the result",
+                "--development",
+                "--non-interactive",
+            ]
+        )
+        == ExitCode.VAULT_KEY_MISSING
+    )

@@ -6,10 +6,15 @@ import sys
 
 import pytest
 
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "src")))
+sys.path.insert(
+    0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "src"))
+)
 
 
 @pytest.fixture(autouse=True)
 def _isolate_aeromesh_home(tmp_path_factory, monkeypatch):
     """Keep live-run state (SQLite checkpoints/memory) out of real AppData."""
-    monkeypatch.setenv("AEROMESH_HOME", str(tmp_path_factory.mktemp("aeromesh-live-home")))
+    monkeypatch.setenv(
+        "AEROMESH_HOME", str(tmp_path_factory.mktemp("aeromesh-live-home"))
+    )
+    monkeypatch.setenv("AEROMESH_MODEL", "deepseek:deepseek-chat")

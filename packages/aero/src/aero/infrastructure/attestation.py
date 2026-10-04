@@ -6,14 +6,22 @@ import json
 from typing import Any, Dict, Tuple
 
 from cryptography.hazmat.primitives import serialization
-from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
+from cryptography.hazmat.primitives.asymmetric.ed25519 import (
+    Ed25519PrivateKey,
+    Ed25519PublicKey,
+)
+from cryptography.exceptions import InvalidSignature, UnsupportedAlgorithm
 
 ALGORITHM = "ed25519"
 
 
 def canonicalize(data: Dict[str, Any]) -> bytes:
     """Deterministic, order-independent JSON serialization used for signing."""
-    return json.dumps(data, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    if not isinstance(data, dict):
+        raise ValueError("A signed manifest must be a JSON object")
+    return json.dumps(
+        data, sort_keys=True, separators=(",", ":"), allow_nan=False
+    ).encode("utf-8")
 
 
 def sha256_hex(raw: bytes) -> str:
@@ -23,8 +31,12 @@ def sha256_hex(raw: bytes) -> str:
 
 def public_key_fingerprint(public_key_pem: bytes) -> str:
     """Stable SHA-256 fingerprint of a public key (for revocation lookup)."""
-    normalized = public_key_pem.decode().replace("\r\n", "\n").strip()
-    return sha256_hex(normalized.encode())
+    public = serialization.load_pem_public_key(public_key_pem)
+    if not isinstance(public, Ed25519PublicKey):
+        raise ValueError("Only Ed25519 public keys are supported")
+    return sha256_hex(
+        public.public_bytes(serialization.Encoding.Raw, serialization.PublicFormat.Raw)
+    )
 
 
 def generate_keypair() -> Tuple[bytes, bytes]:
@@ -46,23 +58,31 @@ def generate_keypair() -> Tuple[bytes, bytes]:
 def sign_bytes(private_key_pem: bytes, data: bytes) -> bytes:
     """Produce a raw Ed25519 signature over ``data`` using a PEM private key."""
     priv = serialization.load_pem_private_key(private_key_pem, password=None)
+    if not isinstance(priv, Ed25519PrivateKey):
+        raise ValueError("Only Ed25519 signing keys are supported")
     return priv.sign(data)
 
 
 def verify_bytes(public_key_pem: bytes, data: bytes, signature: bytes) -> bool:
     """Verify a raw Ed25519 signature. Returns False on mismatch instead of raising."""
-    pub = serialization.load_pem_public_key(public_key_pem)
     try:
+        pub = serialization.load_pem_public_key(public_key_pem)
+        if not isinstance(pub, Ed25519PublicKey):
+            return False
         pub.verify(signature, data)
         return True
-    except Exception:
+    except (InvalidSignature, UnsupportedAlgorithm, ValueError, TypeError):
         return False
 
 
-def sign_manifest_dict(manifest: Dict[str, Any], private_key_pem: bytes) -> Dict[str, Any]:
+def sign_manifest_dict(
+    manifest: Dict[str, Any], private_key_pem: bytes
+) -> Dict[str, Any]:
     """Sign a manifest dict, returning a self-describing attestation object."""
     raw = canonicalize(manifest)
     priv = serialization.load_pem_private_key(private_key_pem, password=None)
+    if not isinstance(priv, Ed25519PrivateKey):
+        raise ValueError("Only Ed25519 signing keys are supported")
     pub_pem = priv.public_key().public_bytes(
         encoding=serialization.Encoding.PEM,
         format=serialization.PublicFormat.SubjectPublicKeyInfo,
@@ -79,18 +99,20 @@ def sign_manifest_dict(manifest: Dict[str, Any], private_key_pem: bytes) -> Dict
 def verify_manifest_dict(manifest: Dict[str, Any], attestation: Dict[str, Any]) -> bool:
     """Cryptographically verify an attestation against the manifest content."""
     try:
-        signature = base64.b64decode(attestation["signature"])
-    except (KeyError, ValueError):
+        if (
+            not isinstance(attestation, dict)
+            or attestation.get("algorithm") != ALGORITHM
+        ):
+            return False
+        signature = base64.b64decode(attestation["signature"], validate=True)
+        if len(signature) != 64 or not isinstance(attestation["public_key"], str):
+            return False
+        raw = canonicalize(manifest)
+        if sha256_hex(raw) != attestation.get("sha256"):
+            return False
+        return verify_bytes(attestation["public_key"].encode(), raw, signature)
+    except (KeyError, ValueError, TypeError, AttributeError):
         return False
-    raw = canonicalize(manifest)
-    if sha256_hex(raw) != attestation.get("sha256"):
-        return False
-    return verify_bytes(attestation["public_key"].encode(), raw, signature)
-
-
-def _normalize_pem(text: str) -> str:
-    """Normalize PEM text for comparison (tolerate LF vs CRLF line endings)."""
-    return text.replace("\r\n", "\n").strip()
 
 
 def verify_manifest_trusted(
@@ -99,8 +121,11 @@ def verify_manifest_trusted(
     trusted_public_key_pem: bytes,
 ) -> bool:
     """Verify both the signature AND that it was produced by a specific trusted key."""
-    if _normalize_pem(attestation.get("public_key", "")) != _normalize_pem(
-        trusted_public_key_pem.decode()
-    ):
+    try:
+        if public_key_fingerprint(
+            attestation["public_key"].encode()
+        ) != public_key_fingerprint(trusted_public_key_pem):
+            return False
+    except (KeyError, ValueError, TypeError, AttributeError, UnsupportedAlgorithm):
         return False
     return verify_manifest_dict(manifest, attestation)

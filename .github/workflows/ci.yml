@@ -3,45 +3,108 @@ name: CI
 on:
   push:
   pull_request:
+  workflow_dispatch:
+    inputs:
+      live:
+        description: Run paid live-provider checks from main (requires protected environment)
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
 
 jobs:
   test:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     strategy:
       fail-fast: false
       matrix:
         python-version: ["3.11", "3.12", "3.13"]
     steps:
       - uses: actions/checkout@v4
-
       - uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
           cache: pip
+          cache-dependency-path: constraints/ci-python.txt
+      - name: Install constrained dependencies
+        run: python -m pip install -c constraints/ci-python.txt -e 'packages/aero[dev]' -e packages/sdk-python
+      - name: Verify dependency consistency
+        run: python -m pip check
+      - name: Unit and integration regressions
+        run: python -m pytest packages/aero/tests -q
+      - name: Real local MCP and system checks (no model substitutes)
+        run: python -m pytest packages/aero/tests_system -m 'not docker' -q
 
-      - name: Install
-        run: pip install -e "packages/aero[dev]"
-
-      - name: Run tests
-        run: pytest packages/aero/tests -q
-
-  live:
-    # Real provider calls; runs for this repo (not forks) and self-skips if the
-    # DEEPSEEK_API_KEY secret is not configured.
+  distribution:
     runs-on: ubuntu-latest
-    if: ${{ !github.event.pull_request.head.repo.fork }}
-    env:
-      DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
-
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
           cache: pip
+          cache-dependency-path: constraints/ci-python.txt
+      - name: Install constrained build tools
+        run: python -m pip install -c constraints/ci-python.txt build hatchling editables
+      - name: Build source distributions and wheels from their source distributions
+        run: |
+          python -m build --no-isolation --outdir dist packages/aero
+          python -m build --no-isolation --outdir dist packages/sdk-python
+      - name: Install only built wheels in a clean environment
+        run: |
+          python -m venv .wheel-venv
+          .wheel-venv/bin/python -m pip install -c constraints/ci-python.txt dist/*.whl
+          .wheel-venv/bin/python -m pip check
+      - name: Verify installed resources and CLI outside source checkout
+        run: .wheel-venv/bin/python scripts/check_distribution.py
+      - uses: actions/upload-artifact@v4
+        with:
+          name: python-distributions
+          path: dist/*
+          if-no-files-found: error
 
-      - name: Install
-        run: pip install -e "packages/aero[dev]"
+  isolated-process:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: constraints/ci-python.txt
+      - run: python -m pip install -c constraints/ci-python.txt -e 'packages/aero[dev]'
+      - name: Prepare immutable local test image
+        run: |
+          docker pull busybox:1.37.0
+          image=$(docker image inspect busybox:1.37.0 --format '{{index .RepoDigests 0}}')
+          test -n "$image"
+          echo "AEROMESH_TEST_IMAGE=$image" >> "$GITHUB_ENV"
+      - name: Actual container boundary tests
+        env:
+          AEROMESH_REQUIRE_DOCKER_TESTS: "1"
+        run: python -m pytest packages/aero/tests_system -m docker -q
 
-      - name: Run live model tests
-        run: pytest packages/aero/tests_live -q
+  live:
+    # Never run paid provider calls or expose secrets to pull-request changes.
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.live && github.ref == 'refs/heads/main' }}
+    environment: live-model-tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: constraints/ci-python.txt
+      - name: Require explicitly configured provider secret
+        run: test -n "$DEEPSEEK_API_KEY" || { echo 'Configure DEEPSEEK_API_KEY in live-model-tests'; exit 1; }
+      - run: python -m pip install -c constraints/ci-python.txt -e 'packages/aero[dev]'
+      - name: Real provider calls (not the offline acceptance gate)
+        run: python -m pytest packages/aero/tests_live -q

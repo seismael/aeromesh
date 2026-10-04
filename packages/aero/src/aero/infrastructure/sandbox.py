@@ -1,72 +1,89 @@
-"""Network Sandbox Firewall Engine for DAM v0.1 allowed_domains Enforcement."""
+"""Hostname matching for the cooperative development proxy.
 
-from urllib.parse import urlparse
-from typing import List, Optional
+This class validates hostnames, not IP routing or process isolation. Enforcement
+against untrusted executables belongs to the network-disabled container backend.
+"""
+
+from __future__ import annotations
+
+import ipaddress
+import re
+from urllib.parse import urlsplit
+
 from aero.domain.errors import AeroMeshDomainError, ErrorCode, ExitCode
 
 
 class NetworkSandboxFirewall:
-    """Enforces domain allowlisting rules declared in agent manifests to prevent unauthorized data exfiltration."""
+    """Deny by default; match exact hosts or complete wildcard suffix labels."""
 
-    def __init__(self, allowed_domains: Optional[List[str]] = None):
-        self.allowed_domains = allowed_domains or []
+    def __init__(self, allowed_domains: list[str] | None = None):
+        self.allowed_domains = list(allowed_domains or [])
 
     def _extract_domain(self, url_or_domain: str) -> str:
-        """Extracts normalized hostname from URL or raw domain string."""
-        target = url_or_domain.strip()
         if (
-            target.startswith("http://")
-            or target.startswith("https://")
-            or "://" in target
+            not isinstance(url_or_domain, str)
+            or not url_or_domain
+            or any(ord(char) <= 32 or ord(char) == 127 for char in url_or_domain)
         ):
-            parsed = urlparse(target)
-            hostname = parsed.hostname or target
-        else:
-            # Strip port and path if present
-            hostname = target.split("/")[0].split(":")[0]
-
-        return hostname.lower()
+            return ""
+        try:
+            # Handle an unbracketed IPv6 literal passed by urlsplit.hostname.
+            try:
+                return str(ipaddress.ip_address(url_or_domain))
+            except ValueError:
+                pass
+            parsed = urlsplit(
+                url_or_domain if "://" in url_or_domain else "//" + url_or_domain
+            )
+            if (
+                parsed.username is not None
+                or parsed.password is not None
+                or (parsed.scheme and parsed.scheme not in ("http", "https"))
+            ):
+                return ""
+            _ = parsed.port  # validate port syntax and range
+            hostname = (parsed.hostname or "").rstrip(".")
+            if not hostname:
+                return ""
+            try:
+                return str(ipaddress.ip_address(hostname))
+            except ValueError:
+                pass
+            hostname = hostname.encode("idna").decode("ascii").lower()
+            if len(hostname) > 253:
+                return ""
+            if not all(
+                re.fullmatch(r"[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?", label)
+                for label in hostname.split(".")
+            ):
+                return ""
+            return hostname
+        except (ValueError, UnicodeError):
+            return ""
 
     def is_domain_allowed(self, url_or_domain: str) -> bool:
-        """Validates if target hostname matches allowed_domains policies.
-
-        Deny-by-default: no declared allowed_domains means no remote access.
-        """
-        if not self.allowed_domains:
+        target = self._extract_domain(url_or_domain)
+        if not target:
             return False
-
-        if "*" in self.allowed_domains:
-            return True
-
-        target_host = self._extract_domain(url_or_domain)
-
         for pattern in self.allowed_domains:
-            pattern_clean = pattern.strip().lower()
-
-            # Strip scheme if declared in pattern
-            if "://" in pattern_clean:
-                pattern_clean = urlparse(pattern_clean).hostname or pattern_clean
-            pattern_clean = pattern_clean.split("/")[0].split(":")[0]
-
-            # Exact match
-            if target_host == pattern_clean:
+            if not isinstance(pattern, str):
+                continue
+            if pattern == "*":
                 return True
-
-            # Wildcard domain match (e.g. *.postgresql.org)
-            if pattern_clean.startswith("*."):
-                suffix = pattern_clean[2:]
-                if target_host.endswith("." + suffix) or target_host == suffix:
-                    return True
-
+            wildcard = pattern.startswith("*.")
+            allowed = self._extract_domain(pattern[2:] if wildcard else pattern)
+            if allowed and (
+                target == allowed or (wildcard and target.endswith("." + allowed))
+            ):
+                return True
         return False
 
     def validate_network_request(self, url_or_domain: str) -> str:
-        """Validates target domain against allowlist policy, raising AMX_ERR_SECURITY_VIOLATION if unauthorized."""
+        target = self._extract_domain(url_or_domain)
         if not self.is_domain_allowed(url_or_domain):
-            target_host = self._extract_domain(url_or_domain)
             raise AeroMeshDomainError(
-                f"Network request to unauthorized target '{target_host}' violates sandbox allowlist policy.",
+                f"Network request to unauthorized target '{target}' violates the proxy allowlist.",
                 ErrorCode.AMX_ERR_DOMAIN_BLOCKED,
                 ExitCode.DOMAIN_BLOCKED,
             )
-        return self._extract_domain(url_or_domain)
+        return target

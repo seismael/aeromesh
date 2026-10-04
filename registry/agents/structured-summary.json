@@ -1,0 +1,52 @@
+{
+  "manifest_version": "0.2.0",
+  "identity": {
+    "id": "structured-summary",
+    "name": "Structured summary",
+    "version": "1.0.0",
+    "license": "Apache-2.0"
+  },
+  "capabilities": {
+    "domain": "Writing",
+    "tags": [
+      "summary",
+      "json"
+    ],
+    "short_description": "Summarizes supplied text in a schema-checked JSON object. Does not retrieve external facts.",
+    "evaluation_trigger": "Summarize provided information",
+    "output_contract": {
+      "type": "object",
+      "required": [
+        "summary",
+        "limitations"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "summary": {
+          "type": "string",
+          "minLength": 1
+        },
+        "limitations": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    }
+  },
+  "cognitive_runtime": {
+    "persona": "Summarize only the information supplied by the user. Return ONLY a JSON object with summary (string) and limitations (array of strings). Do not invent sources or claim external actions.",
+    "success_criteria": "Faithfully summarize supplied text and identify missing context.",
+    "memory_policy": "EPHEMERAL_STREAM",
+    "checkpoint_policy": "DISABLED"
+  },
+  "requirements": {
+    "providers": []
+  },
+  "observability": {
+    "max_execution_steps": 8,
+    "max_model_calls": 4,
+    "max_output_tokens": 1024
+  }
+}

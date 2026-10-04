@@ -1,11 +1,11 @@
 [build-system]
-requires = ["hatchling"]
+requires = ["hatchling==1.32.4", "editables==0.5"]
 build-backend = "hatchling.build"
 
 [project]
 name = "aero"
-version = "0.1.0"
-description = "AeroMesh: a declarative, signed, sandboxed standard for AI agents, compiled into LangChain Deep Agents"
+version = "0.2.0"
+description = "Approved declarative agent releases compiled into LangChain Deep Agents"
 readme = "README.md"
 requires-python = ">=3.11"
 license = "Apache-2.0"
@@ -34,19 +34,22 @@ classifiers = [
     "Topic :: Scientific/Engineering :: Artificial Intelligence",
 ]
 dependencies = [
-    "jsonschema>=4.20.0",
-    "rich>=13.7.0",
-    "cryptography>=42.0.0",
-    "keyring>=24.0.0",
-    "deepagents>=0.6.0",
-    "langchain>=1.0.0",
-    "langchain-deepseek>=1.0.0",
-    "langchain-anthropic>=0.3.0",
-    "langchain-openai>=1.0.0",
-    "langchain-google-genai>=2.0.0",
-    "langchain-mcp-adapters>=0.3.0",
-    "langgraph-checkpoint-sqlite>=2.0.0",
-    "aiosqlite>=0.20.0",
+    "jsonschema>=4.26,<5",
+    "rich>=15,<16",
+    "cryptography>=50.0.2,<51",
+    "keyring>=25.7,<26",
+    "deepagents>=0.7.21,<0.8",
+    "langchain>=1.4.3,<1.5",
+    "langchain-core>=1.6.6,<1.7",
+    "langchain-deepseek>=1.1.1,<1.2",
+    "langchain-anthropic>=1.7.5,<1.8",
+    "langchain-openai>=1.6.7,<1.7",
+    "langchain-google-genai>=4.4,<4.5",
+    "langchain-mcp-adapters>=0.3.2,<0.4",
+    "langgraph>=1.2.12,<1.3",
+    "langgraph-checkpoint-sqlite>=3.1.1,<3.2",
+    "aiosqlite>=0.22.1,<0.23",
+    "mcp>=1.30,<1.31",
 ]
 
 [project.urls]
@@ -59,12 +62,23 @@ Issues = "https://github.com/seismael/aeromesh/issues"
 amx = "aero.presentation.cli:main"
 
 [project.optional-dependencies]
-dev = ["pytest"]
+dev = ["pytest>=9.1,<10", "build>=1.6,<2", "hatchling>=1.27,<2", "packaging>=26,<27"]
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/aero"]
 
+[tool.hatch.build.hooks.custom]
+path = "hatch_build.py"
+
+# A source distribution must contain the same runtime schemas as the wheel.
+[tool.hatch.build.targets.sdist.force-include]
+"../../schemas" = "schemas"
+
+[tool.hatch.build.targets.sdist]
+include = ["src", "README.md", "pyproject.toml", "hatch_build.py", "schemas"]
+
 [tool.pytest.ini_options]
 markers = [
     "live: tests that call a real LLM provider (skipped without a key)",
+    "docker: real isolated-process tests requiring Docker and a pinned fixture image",
 ]

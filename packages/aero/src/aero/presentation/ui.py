@@ -73,7 +73,13 @@ class AeroTerminalUI:
         if choice in ("", "1"):
             return existing_val, True
         elif choice == "2":
-            new_key = fn(f"Enter secret key for {key_id}: ").strip()
+            import getpass
+
+            new_key = (
+                input_fn(f"Enter secret key for {key_id}: ")
+                if input_fn
+                else getpass.getpass(f"Enter secret key for {key_id}: ")
+            ).strip()
             return new_key, bool(new_key)
         else:
             return "", False
@@ -112,7 +118,13 @@ class AeroTerminalUI:
         console.print(
             f"[bold green]Selected Provider:[/bold green] {selected_prov['name']}"
         )
-        api_key = fn(f"Enter API Key for {selected_prov['name']}: ").strip()
+        import getpass
+
+        api_key = (
+            input_fn(f"Enter API Key for {selected_prov['name']}: ")
+            if input_fn
+            else getpass.getpass(f"Enter API Key for {selected_prov['name']}: ")
+        ).strip()
 
         return selected_prov["id"], api_key
 
@@ -154,7 +166,7 @@ class AeroTerminalUI:
 
     @staticmethod
     def render_result(result: str) -> None:
-        """Renders a verified execution result."""
+        """Renders an execution result without certifying task correctness."""
         console.print(f"[bold green]✅ Result:[/bold green] {result}")
 
     @staticmethod
@@ -198,7 +210,7 @@ class AeroTerminalUI:
     def render_search_results(results: List[Any]) -> None:
         """Renders 2-Tier Search Index results in a Rich table layout."""
         table = Table(
-            title="🔍 AeroMesh 2-Tier Agent Search Index",
+            title="🔍 AeroMesh BM25 Local Catalog",
             show_header=True,
             header_style="bold cyan",
         )
@@ -221,34 +233,5 @@ class AeroTerminalUI:
 
     @staticmethod
     def render_security_audit(audit_res: Dict[str, Any]) -> None:
-        """Renders static security scanner results and cryptographic attestations."""
-        is_sec = audit_res.get("is_secure", False)
-        status_str = (
-            "[bold green]SECURE ✅[/bold green]"
-            if is_sec
-            else "[bold red]VULNERABLE ❌[/bold red]"
-        )
-
-        lines = [
-            f"[bold cyan]Agent ID:[/bold cyan] {audit_res.get('agent_id')} (v{audit_res.get('version')})",
-            f"[bold cyan]Security Status:[/bold cyan] {status_str}",
-            f"[bold cyan]SHA-256 Hash:[/bold cyan] [yellow]{audit_res.get('sha256_attestation')}[/yellow]\n",
-        ]
-
-        issues = audit_res.get("issues", [])
-        if issues:
-            lines.append("[bold red]Detected Issues:[/bold red]")
-            for issue in issues:
-                lines.append(f"  • {issue}")
-        else:
-            lines.append(
-                "[bold green]Zero security vulnerabilities detected.[/bold green]"
-            )
-
-        panel = Panel(
-            "\n".join(lines),
-            title="[bold magenta]🛡️ Guardian Security Attestation Audit[/bold magenta]",
-            border_style="magenta",
-            expand=False,
-        )
-        console.print(panel)
+        console.print("Manifest lint (not a security certification)", markup=False)
+        console.print(audit_res, markup=False)

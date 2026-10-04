@@ -1,126 +1,13 @@
-# Contributing to AeroMesh
+# Contributing
 
-Thank you for your interest in contributing to **AeroMesh**! We welcome and deeply appreciate contributions from developers, researchers, AI engineers, and open-source enthusiasts around the world.
+AeroMesh is a focused configuration, approved-release and execution-policy layer on Deep Agents. Keep the runtime native; do not add speculative schema fields or security claims without implemented semantics and negative tests.
 
-AeroMesh is an open-source **declarative agent standard (DAM v0.1)** with signing, sandboxing, and a marketplace layer, compiled into **LangChain Deep Agents** for execution.
+1. Read `.agents/AGENTS.md` and the architecture/security documentation.
+2. Reproduce the user-visible defect with a failing regression first.
+3. Make the bounded implementation change; preserve fail-closed defaults and explicit development opt-in.
+4. Update documentation and migration notes when behavior changes.
+5. Run `pytest packages/aero/tests -q`, real local MCP tests, and distribution checks. Container or provider checks must be explicitly reported as passed, failed or not exercised.
 
----
+Use explicit test fixtures for model substitutes. Keep production code free of fake outputs. Test actual transport, scheduling, filesystem and crypto boundaries where those are the claim; avoid tests that only repeat a mapping implementation.
 
-## 📜 Table of Contents
-
-- [Code of Conduct](#-code-of-conduct)
-- [Ways to Contribute](#-ways-to-contribute)
-  - [1. Submitting New Declarative Agents](#1-submitting-new-declarative-agents)
-  - [2. Submitting Declarative Mesh Workflows](#2-submitting-declarative-mesh-workflows)
-  - [3. Core Engine & Package Enhancements](#3-core-engine--package-enhancements)
-  - [4. Reporting Bugs & Security Issues](#4-reporting-bugs--security-issues)
-- [Local Development Setup](#-local-development-setup)
-- [Pull Request Process](#-pull-request-process)
-- [Coding Standards & Conventions](#-coding-standards--conventions)
-
----
-
-## 🤝 Code of Conduct
-
-We are committed to providing a welcoming, inclusive, and respectful community for everyone. Please maintain professional communication, constructiveness, and mutual respect in all issues, pull requests, and discussions.
-
----
-
-## 💡 Ways to Contribute
-
-### 1. Submitting New Declarative Agents
-You can contribute new pre-configured agent manifests to the [`registry/agents/`](registry/agents) directory!
-- Ensure your manifest validates against [`schemas/declarative-agent.schema.json`](schemas/declarative-agent.schema.json):
-  ```bash
-  amx validate registry/agents/your-agent.json
-  ```
-- Test your agent with a sample intent:
-  ```bash
-  amx run registry/agents/your-agent.json "Sample intent description"
-  ```
-
-### 2. Submitting Declarative Workflows (DWM v0.1)
-You can contribute reusable multi-agent DAGs to [`registry/workflows/`](registry/workflows):
-- Ensure your workflow validates against [`schemas/declarative-workflow.schema.json`](schemas/declarative-workflow.schema.json):
-  ```bash
-  amx workflow sign registry/workflows/your-workflow.json
-  amx workflow install registry/workflows/your-workflow.json
-  ```
-- Every `agent_id` a workflow references must itself be a signed, trusted agent in `registry/agents/` (see `docs/10`).
-
-### 3. Core Engine & Package Enhancements
-Want to improve the engine performance, add new MCP drivers, or build monorepo packages under `packages/`?
-- Follow the **Clean Layered Architecture** (`domain/`, `services/`, `presentation/`, `infrastructure/`).
-- Follow **Test-Driven Development (TDD)** by adding unit and integration tests under `tests/`.
-
-### 4. Reporting Bugs & Security Issues
-Found a bug or security issue? Please open a GitHub Issue with:
-- Clear steps to reproduce
-- Expected vs actual behavior
-- Relevant diagnostic output (`--diagnostics`)
-- System OS environment details
-
----
-
-## 🛠️ Local Development Setup
-
-1. **Fork and Clone the Repository**:
-   ```bash
-   git clone https://github.com/YOUR_USERNAME/aeromesh.git
-   cd aeromesh
-   ```
-
-2. **Set Up Python Virtual Environment**:
-   ```bash
-   python -m venv .venv
-   # Windows:
-   .venv\Scripts\activate
-   # Linux/macOS:
-   source .venv/bin/activate
-   ```
-
-3. **Install Package in Editable Mode**:
-   ```bash
-   pip install -e packages/aero
-   pip install pytest pytest-asyncio
-   ```
-
-4. **Run Automated Test Suite**:
-   ```bash
-   python -m pytest packages/aero/tests/
-   ```
-
----
-
-## 🚀 Pull Request Process
-
-1. **Create a Feature Branch**:
-   ```bash
-   git checkout -b feat/your-feature-name
-   ```
-
-2. **Verify Tests**:
-   Ensure the full offline test suite passes before submitting:
-   ```bash
-   python -m pytest packages/aero/tests/
-   ```
-
-3. **Commit your Changes**:
-   Follow Conventional Commits formatting:
-   - `feat(core): add new capability`
-   - `fix(vault): fix key resolution edge case`
-   - `docs(readme): improve quickstart instructions`
-
-4. **Push & Open Pull Request**:
-   Push your branch and open a Pull Request against the `main` branch of [`seismael/aeromesh`](https://github.com/seismael/aeromesh).
-
----
-
-## 📐 Coding Standards & Conventions
-
-- **SOLID & GoF Patterns**: Strictly adhere to Object-Oriented Design (OOD) and Domain-Driven Design (DDD).
-- **Type Annotations**: Use Python type hints on all public interfaces and methods.
-- **Error Handling**: Use domain error hierarchy (`AeroMeshDomainError`) with machine-readable codes (`AMX_ERR_*`).
-- **OS-Agnostic Paths**: Always resolve user home paths dynamically using `get_aeromesh_home()`.
-
-Thank you for building the future of open autonomous agent swarms with us! 🚀
+Do not commit credentials, signing private keys, local approvals, sessions, receipts or build products. Public examples are unsigned drafts. A signature does not prove a code review or independent safety evaluation.

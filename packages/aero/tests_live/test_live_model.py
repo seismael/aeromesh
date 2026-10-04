@@ -1,6 +1,6 @@
 """Live integration test against a real LLM provider — no mocks, no fakes.
 
-Run explicitly (or in CI when the provider-key secret is present):
+Run explicitly (or manually dispatch CI's protected live-model job):
 
     $env:DEEPSEEK_API_KEY = "..."   # or set it as a user/system env var
     pytest packages/aero/tests_live -q
@@ -14,7 +14,7 @@ from aero.infrastructure.parser import ManifestParser
 from aero.services.deepagents_runner import DeepAgentsExecutionDriver
 
 MANIFEST = {
-    "manifest_version": "0.1.0",
+    "manifest_version": "0.2.0",
     "identity": {"id": "live-echo", "name": "Live Echo", "version": "1.0.0"},
     "capabilities": {
         "domain": "General",
@@ -28,8 +28,14 @@ MANIFEST = {
             "and nothing else."
         ),
         "success_criteria": "PONG",
+        "checkpoint_policy": "DISABLED",
     },
     "requirements": {"providers": []},
+    "observability": {
+        "max_execution_steps": 8,
+        "max_model_calls": 2,
+        "max_output_tokens": 128,
+    },
 }
 
 
@@ -40,11 +46,14 @@ def test_live_deepseek_echo():
         pytest.skip("DEEPSEEK_API_KEY not set; skipping live test")
 
     manifest = ManifestParser().validate_dict(MANIFEST)
-    driver = DeepAgentsExecutionDriver(manifest)
+    # This test checks the live provider/runtime, not signed release installation.
+    driver = DeepAgentsExecutionDriver(manifest, development=True)
     try:
         result = driver.execute("Reply with exactly the word PONG.")
     finally:
         driver.close()
 
     output = str(result.get("verified_result") or "").upper()
-    assert "PONG" in output
+    assert output.strip() == "PONG"
+    assert result["execution_success"] is True
+    assert result["success_criteria_met"] is None

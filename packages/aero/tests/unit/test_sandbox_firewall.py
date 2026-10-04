@@ -4,36 +4,49 @@ import pytest
 from aero.infrastructure.sandbox import NetworkSandboxFirewall
 from aero.domain.errors import AeroMeshDomainError, ErrorCode, ExitCode
 
+
 def test_sandbox_firewall_allowed_exact_domain():
-    firewall = NetworkSandboxFirewall(allowed_domains=["postgresql.org", "api.stripe.com"])
-    
+    firewall = NetworkSandboxFirewall(
+        allowed_domains=["postgresql.org", "api.stripe.com"]
+    )
+
     assert firewall.is_domain_allowed("postgresql.org") is True
     assert firewall.is_domain_allowed("api.stripe.com") is True
     assert firewall.is_domain_allowed("https://api.stripe.com/v1/charges") is True
 
+
 def test_sandbox_firewall_allowed_wildcard_domain():
-    firewall = NetworkSandboxFirewall(allowed_domains=["*.postgresql.org", "github.com"])
-    
+    firewall = NetworkSandboxFirewall(
+        allowed_domains=["*.postgresql.org", "github.com"]
+    )
+
     assert firewall.is_domain_allowed("db1.postgresql.org") is True
-    assert firewall.is_domain_allowed("https://us-east.db1.postgresql.org:5432/query") is True
+    assert (
+        firewall.is_domain_allowed("https://us-east.db1.postgresql.org:5432/query")
+        is True
+    )
     assert firewall.is_domain_allowed("github.com") is True
     assert firewall.is_domain_allowed("api.github.com") is False
 
+
 def test_sandbox_firewall_reject_unauthorized_domain():
     firewall = NetworkSandboxFirewall(allowed_domains=["postgresql.org"])
-    
+
     assert firewall.is_domain_allowed("malicious-exfiltration-site.com") is False
-    
+
     with pytest.raises(AeroMeshDomainError) as exc_info:
-        firewall.validate_network_request("https://malicious-exfiltration-site.com/steal")
-    
+        firewall.validate_network_request(
+            "https://malicious-exfiltration-site.com/steal"
+        )
+
     assert exc_info.value.error_code == ErrorCode.AMX_ERR_DOMAIN_BLOCKED
     assert exc_info.value.exit_code == ExitCode.DOMAIN_BLOCKED
     assert "malicious-exfiltration-site.com" in str(exc_info.value)
 
+
 def test_sandbox_firewall_allow_all_when_wildcard():
     firewall = NetworkSandboxFirewall(allowed_domains=["*"])
-    
+
     assert firewall.is_domain_allowed("any-domain.com") is True
     assert firewall.is_domain_allowed("https://google.com/search") is True
 
@@ -45,3 +58,34 @@ def test_sandbox_firewall_deny_by_default_when_no_domains_declared():
     with pytest.raises(AeroMeshDomainError) as exc_info:
         firewall.validate_network_request("https://anything.com/steal")
     assert exc_info.value.error_code == ErrorCode.AMX_ERR_DOMAIN_BLOCKED
+
+
+def test_normalization_handles_ipv6_and_dns_root_dot():
+    firewall = NetworkSandboxFirewall(["[::1]", "example.com"])
+    assert firewall.is_domain_allowed("http://[::1]:8000/x")
+    assert firewall.is_domain_allowed("::1")
+    assert firewall.is_domain_allowed("https://EXAMPLE.COM./x")
+    assert not firewall.is_domain_allowed("::2")
+
+
+@pytest.mark.parametrize(
+    "target",
+    [
+        "",
+        "http:///",
+        "http://user@example.com",
+        "example.com\n",
+        "*.example.com",
+        "foo:badport",
+        "http://example.com:99999/",
+    ],
+)
+def test_invalid_targets_cannot_bypass_allow_all(target):
+    assert not NetworkSandboxFirewall(["*"]).is_domain_allowed(target)
+
+
+def test_suffix_boundary_rejects_lookalikes():
+    firewall = NetworkSandboxFirewall(["*.example.com"])
+    assert not firewall.is_domain_allowed("badexample.com")
+    assert not firewall.is_domain_allowed("example.com.attacker.test")
+    assert not firewall.is_domain_allowed("example.com@attacker.test")

@@ -5,9 +5,11 @@ from typing import Any, Optional
 
 from aero.domain.errors import AeroMeshDomainError, ErrorCode, ExitCode
 from aero.domain.models import WorkflowManifest
-from aero.infrastructure.parser import WorkflowParser
+from aero.infrastructure.parser import WorkflowParser, ManifestParser
+from aero.infrastructure.attestation import canonicalize, sha256_hex
+from aero.services import trust
 from aero.services.discovery import AeroDiscoveryEngine
-from aero.services.synthesizer import extract_json
+from aero.services.synthesizer import extract_json, persist_draft
 
 SYSTEM_PROMPT = (
     "You are a workflow designer for AeroMesh. Given a user goal and a catalog of "
@@ -18,7 +20,7 @@ SYSTEM_PROMPT = (
     "Rules: (1) choose agent_id values ONLY from the provided catalog; "
     "(2) identity.id must be a lowercase kebab-case slug; "
     "(3) use depends_on to express ordering — steps with no shared dependency run in parallel; "
-    "(4) use {step_id} placeholders in intent to pass an upstream step's result downstream; "
+    "(4) use {input} for the workflow input and {step_id} only for explicitly listed direct dependencies; "
     "(5) set output to the id of the final step. "
     "Do not include explanations or markdown fences."
 )
@@ -47,26 +49,42 @@ class WorkflowSynthesizer:
 
         return resolve_model()
 
-    def _catalog(self) -> str:
-        records = self.discovery.build_registry_index()
-        entries = [
-            {
-                "id": r.id,
-                "name": r.name,
-                "domain": r.domain,
-                "short_description": r.short_description,
-                "evaluation_trigger": r.evaluation_trigger,
+    def _catalog(self):
+        entries = {}
+        for record in self.discovery.build_registry_index():
+            try:
+                raw = trust.require_trusted_manifest(record.path, expected_id=record.id)
+                manifest = ManifestParser().validate_dict(raw)
+            except AeroMeshDomainError:
+                continue
+            entries[record.id] = {
+                "id": manifest.identity.id,
+                "name": manifest.identity.name,
+                "domain": manifest.capabilities.domain,
+                "short_description": manifest.capabilities.short_description,
+                "evaluation_trigger": manifest.capabilities.evaluation_trigger,
+                "agent_sha256": sha256_hex(canonicalize(raw)),
             }
-            for r in records
-        ]
-        return json.dumps(entries, indent=2)
+        return entries
 
     def synthesize(self, goal: str, max_retries: int = 3) -> WorkflowManifest:
-        model = self._get_model()
+        if not isinstance(goal, str) or not goal.strip() or not 1 <= max_retries <= 5:
+            raise AeroMeshDomainError(
+                "Workflow synthesis requires a nonempty goal and 1–5 attempts.",
+                ErrorCode.AMX_ERR_JIT_BUILD_FAILED,
+                ExitCode.JIT_BUILD_FAILED,
+            )
         catalog = self._catalog()
+        if not catalog:
+            raise AeroMeshDomainError(
+                "Workflow synthesis requires at least one explicitly trusted agent.",
+                ErrorCode.AMX_ERR_DISCOVERY_NO_MATCH,
+                ExitCode.DISCOVERY_NO_MATCH,
+            )
+        model = self._get_model()
         last_error = None
         for _ in range(1, max_retries + 1):
-            user_prompt = f"Goal: {goal}\n\nAvailable verified agents:\n{catalog}"
+            user_prompt = f"Goal: {goal}\n\nAvailable verified agents:\n{json.dumps(list(catalog.values()))}"
             if last_error:
                 user_prompt += f"\nPrevious attempt failed validation: {last_error}"
             response = model.invoke([("system", SYSTEM_PROMPT), ("human", user_prompt)])
@@ -76,7 +94,18 @@ class WorkflowSynthesizer:
                 last_error = "response contained no JSON object"
                 continue
             try:
-                return self.parser.validate_dict(data)
+                self.parser.validate_dict(data)
+                for step in data["steps"]:
+                    if step["agent_id"] not in catalog:
+                        raise AeroMeshDomainError(
+                            "Generated workflow references an agent outside the verified catalog.",
+                            ErrorCode.AMX_ERR_JIT_BUILD_FAILED,
+                            ExitCode.JIT_BUILD_FAILED,
+                        )
+                    step["agent_sha256"] = catalog[step["agent_id"]]["agent_sha256"]
+                manifest = self.parser.validate_dict(data)
+                self.last_manifest_path = persist_draft(data)
+                return manifest
             except AeroMeshDomainError as e:
                 last_error = str(e)
 

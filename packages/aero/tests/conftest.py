@@ -4,10 +4,9 @@ import sys
 import pytest
 
 # Appends src/ to sys.path so tests can import amx modules natively
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "src")))
-
-# Tests must not spawn real MCP subprocesses (e.g. `npx`).
-os.environ.setdefault("AEROMESH_EXECUTE_TOOLS", "0")
+sys.path.insert(
+    0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "src"))
+)
 
 
 @pytest.fixture(autouse=True)
@@ -18,6 +17,7 @@ def _isolate_aeromesh_home(tmp_path_factory, monkeypatch):
     real user AppData directory.
     """
     monkeypatch.setenv("AEROMESH_HOME", str(tmp_path_factory.mktemp("aeromesh-home")))
+
 
 # ---------------------------------------------------------------------------
 # Test doubles (fakes/mocks live ONLY here, never in production code).
@@ -45,16 +45,40 @@ class FakeChatModel(BaseChatModel):
         return self
 
 
-# Inject the fake model and skip real MCP tool building so tests never hit a
-# real LLM provider or spawn MCP subprocesses.
-import aero.services.deepagents_runner as _dgr
+@pytest.fixture
+def offline_runtime(monkeypatch):
+    """Opt in to a deterministic LLM; all runtime and MCP code stays real."""
+    import aero.services.deepagents_runner as runtime
 
-_dgr.resolve_model = lambda credentials=None: FakeChatModel()
-_dgr.build_mcp_tools = lambda *args, **kwargs: []
+    model = FakeChatModel()
+    monkeypatch.setattr(runtime, "resolve_model", lambda credentials=None: model)
+    return model
 
-# Key storage uses an in-memory Fernet key so tests never touch the OS keyring.
-import aero.infrastructure.keystore as _ks
-from cryptography.fernet import Fernet
 
-_fernet_key = Fernet.generate_key()
-_ks._fernet = lambda store=None: Fernet(_fernet_key)
+@pytest.fixture
+def mock_mcp_tools(monkeypatch):
+    """Explicitly skip MCP discovery only in tests that do not exercise tools."""
+    import aero.services.deepagents_runner as runtime
+
+    monkeypatch.setattr(runtime, "build_mcp_tools", lambda *args, **kwargs: [])
+
+
+@pytest.fixture(autouse=True)
+def _isolated_key_storage(monkeypatch):
+    """Exercise real credential/encryption code without touching the OS keyring."""
+    import keyring
+
+    secrets = {}
+    monkeypatch.setattr(
+        keyring, "get_password", lambda service, key: secrets.get((service, key))
+    )
+    monkeypatch.setattr(
+        keyring,
+        "set_password",
+        lambda service, key, value: secrets.__setitem__((service, key), value),
+    )
+    monkeypatch.setattr(
+        keyring,
+        "delete_password",
+        lambda service, key: secrets.pop((service, key), None),
+    )

@@ -1,9 +1,39 @@
 """Cross-Platform OS-Agnostic Path Resolution Module for AeroMesh."""
 
 import os
+import re
 import sys
 from pathlib import Path
 from typing import Optional
+
+from aero.domain.errors import AeroMeshDomainError, ErrorCode, ExitCode
+
+
+def validate_artifact_id(value: str) -> str:
+    """Registry identities and key names are identifiers, never filesystem paths."""
+    if (
+        not isinstance(value, str)
+        or re.fullmatch(r"[a-z0-9][a-z0-9_-]{0,127}", value) is None
+    ):
+        raise AeroMeshDomainError(
+            "Invalid artifact identifier; use 1–128 lowercase letters, digits, underscores or hyphens.",
+            ErrorCode.AMX_ERR_SCHEMA_VIOLATION,
+            ExitCode.SCHEMA_VIOLATION,
+        )
+    return value
+
+
+def confined_artifact_path(directory: Path, artifact_id: str, suffix: str) -> Path:
+    """Reject path components and existing symlinks escaping the chosen store."""
+    validate_artifact_id(artifact_id)
+    target = directory / f"{artifact_id}{suffix}"
+    if target.is_symlink() or not target.resolve().is_relative_to(directory.resolve()):
+        raise AeroMeshDomainError(
+            "Artifact path escapes its configured store.",
+            ErrorCode.AMX_ERR_SCHEMA_VIOLATION,
+            ExitCode.SCHEMA_VIOLATION,
+        )
+    return target
 
 
 def get_aeromesh_home() -> Path:
@@ -52,6 +82,15 @@ def get_aeromesh_workflows_dir() -> Path:
     return get_aeromesh_home() / "workflows"
 
 
+def get_aeromesh_trusted_dir() -> Path:
+    """Locally approved signer keys; registry contents never grant approval."""
+    return get_aeromesh_home() / "trusted"
+
+
+def get_aeromesh_revoked_dir() -> Path:
+    return get_aeromesh_home() / "revoked"
+
+
 def get_aeromesh_vfs_dir() -> Path:
     return get_aeromesh_home() / "vfs"
 
@@ -98,13 +137,19 @@ def resolve_agent_manifest_path(target_str: str) -> Optional[Path]:
     if path.exists() and path.is_file():
         return path
 
-    target_name = target_str if target_str.endswith(".json") else f"{target_str}.json"
-
-    local_store_path = get_aeromesh_agents_dir() / target_name
+    artifact_id = target_str[:-5] if target_str.endswith(".json") else target_str
+    try:
+        local_store_path = confined_artifact_path(
+            get_aeromesh_agents_dir(), artifact_id, ".json"
+        )
+        registry_path = confined_artifact_path(
+            get_aeromesh_workspace_registry_dir(), artifact_id, ".json"
+        )
+    except AeroMeshDomainError:
+        return None
     if local_store_path.exists():
         return local_store_path
 
-    registry_path = get_aeromesh_workspace_registry_dir() / target_name
     if registry_path.exists():
         return registry_path
 
@@ -124,13 +169,19 @@ def resolve_workflow_manifest_path(target_str: str) -> Optional[Path]:
     if path.exists() and path.is_file():
         return path
 
-    target_name = target_str if target_str.endswith(".json") else f"{target_str}.json"
-
-    local_store_path = get_aeromesh_workflows_dir() / target_name
+    artifact_id = target_str[:-5] if target_str.endswith(".json") else target_str
+    try:
+        local_store_path = confined_artifact_path(
+            get_aeromesh_workflows_dir(), artifact_id, ".json"
+        )
+        workspace_path = confined_artifact_path(
+            get_aeromesh_workspace_workflows_dir(), artifact_id, ".json"
+        )
+    except AeroMeshDomainError:
+        return None
     if local_store_path.exists():
         return local_store_path
 
-    workspace_path = get_aeromesh_workspace_workflows_dir() / target_name
     if workspace_path.exists():
         return workspace_path
 

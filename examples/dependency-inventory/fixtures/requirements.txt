@@ -1,0 +1,4 @@
+# Input data for the inventory example. Do not install this as an environment.
+jsonschema==4.26.0
+rich>=15,<16
+packaging==26.3

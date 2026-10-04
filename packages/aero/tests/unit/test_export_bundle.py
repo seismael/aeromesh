@@ -13,16 +13,21 @@ MANIFEST_TEXT = """{
   "requirements": { "providers": [] }
 }"""
 
+
 def test_export_bundle_logic():
     scanner = GuardianSecurityScanner()
     bundle = scanner.export_bundle(MANIFEST_TEXT)
 
-    assert bundle["bundle_version"] == "1.0.0"
+    assert bundle["report_version"] == "1"
     assert bundle["agent_id"] == "export-test-agent"
-    assert bundle["attestation"].startswith("sha256:")
+    assert len(bundle["sha256"]) == 64
+    assert bundle["signed"] is False
+    assert "not" in bundle["scope"] or "Passing does not" in bundle["scope"]
+
 
 def test_cli_export_bundle_command():
     import shutil
+
     tmp_path = Path.cwd() / ".test_tmp_export"
     tmp_path.mkdir(exist_ok=True)
     try:

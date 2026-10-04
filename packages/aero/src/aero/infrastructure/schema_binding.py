@@ -1,8 +1,10 @@
 """Schema Binding & IntelliSense Metadata Infrastructure Service for IDEs & Studio Tools."""
 
 import os
+import json
+from pathlib import Path
 from typing import Dict, Any, Optional
-from aero.infrastructure.parser import SCHEMA_PATH, ManifestParser
+from aero.infrastructure.parser import ManifestParser
 
 
 class AeroSchemaBindingService:
@@ -12,17 +14,23 @@ class AeroSchemaBindingService:
         self.parser = parser or ManifestParser()
 
     def get_schema_binding_info(self) -> Dict[str, Any]:
-        """Returns DAM v0.1 JSON Schema identifier and description metadata."""
+        """Describe the shipped schema and the actual production boundary."""
+        schema = json.loads(Path(self.parser.schema_path).read_text(encoding="utf-8"))
+        versions = schema["properties"]["manifest_version"]["enum"]
         return {
-            "schema_uri": "urn:aeromesh:schemas:declarative-agent:0.1.0",
-            "local_schema_path": os.path.abspath(SCHEMA_PATH),
-            "manifest_version": "0.1.0",
+            "schema_uri": schema["$id"],
+            "local_schema_path": os.path.abspath(self.parser.schema_path),
+            "manifest_version": max(
+                versions, key=lambda v: tuple(map(int, v.split(".")))
+            ),
+            "accepted_manifest_versions": versions,
             "supported_drivers": [
                 "Driver.LangGraph",
-                "Driver.LangChain",
-                "Driver.CustomCDI",
             ],
             "supported_transports": ["stdio", "sse", "http"],
+            "production_transport": "stdio",
+            "production_isolation": "digest-pinned-container-network-none",
+            "development_only_transports": ["sse", "http"],
         }
 
     def validate_and_annotate_manifest(self, raw_json: str) -> Dict[str, Any]:

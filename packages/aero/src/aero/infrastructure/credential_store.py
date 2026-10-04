@@ -12,8 +12,8 @@ class SecureCredentialStore:
     `keyring` library (Windows Credential Locker / macOS Keychain / Secret Service).
 
     When no keyring backend is available (e.g. a headless CI runner), reads return
-    ``None`` (treated as "not found") and writes raise, so callers fall back to the
-    loudly-warned plaintext file.
+    ``None`` (treated as "not found") and writes raise. Callers must not downgrade
+    storage to a plaintext file.
     """
 
     def __init__(self, service: str = SERVICE, backend: Any = None):
@@ -40,6 +40,12 @@ class SecureCredentialStore:
             return self._backend.get_password(self.service, key_id)
         except Exception:  # noqa: BLE001 — no backend → treat as "not found"
             return None
+
+    def get_strict(self, key_id: str) -> Optional[str]:
+        """For encryption keys, a locked backend must never mean 'create a key'."""
+        if self._backend is None:
+            raise RuntimeError("no OS keyring backend available")
+        return self._backend.get_password(self.service, key_id)
 
     def delete(self, key_id: str) -> None:
         if self._backend is None:

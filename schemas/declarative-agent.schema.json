@@ -1,8 +1,8 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "$id": "urn:aeromesh:schemas:declarative-agent:0.1.0",
+  "$id": "urn:aeromesh:schemas:declarative-agent:0.2.0",
   "title": "AeroMesh Declarative Agent Manifest",
-  "description": "Declarative Agent Manifest (DAM) v0.1 schema for portable, signed, sandboxed AI agents.",
+  "description": "Versioned agent configuration with enforced execution contracts.",
   "type": "object",
   "required": [
     "manifest_version",
@@ -15,18 +15,23 @@
   "properties": {
     "manifest_version": {
       "type": "string",
-      "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$",
-      "description": "Semantic version of the DAM specification standard (currently '0.1.0')."
+      "enum": [
+        "0.1.0",
+        "0.2.0"
+      ]
     },
     "identity": {
       "type": "object",
-      "required": ["id", "name", "version"],
+      "required": [
+        "id",
+        "name",
+        "version"
+      ],
       "additionalProperties": false,
       "properties": {
         "id": {
           "type": "string",
-          "pattern": "^[a-z0-9-_]+$",
-          "description": "Unique, machine-readable, URL-safe identifier for the declarative agent."
+          "pattern": "^[a-z0-9][a-z0-9_-]{0,127}$"
         },
         "name": {
           "type": "string",
@@ -38,31 +43,55 @@
           "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$",
           "description": "Semantic version of this specific agent manifest configuration."
         },
-        "author": { "type": "string" },
-        "license": { "type": "string" },
+        "author": {
+          "type": "string"
+        },
+        "license": {
+          "type": "string"
+        },
         "funding": {
           "type": "object",
           "additionalProperties": false,
           "properties": {
-            "url": { "type": "string" },
-            "type": { "type": "string" }
+            "url": {
+              "type": "string"
+            },
+            "type": {
+              "type": "string"
+            }
           }
         }
       }
     },
     "capabilities": {
       "type": "object",
-      "required": ["domain", "tags", "short_description", "evaluation_trigger"],
+      "required": [
+        "domain",
+        "tags",
+        "short_description",
+        "evaluation_trigger"
+      ],
       "additionalProperties": false,
       "properties": {
-        "domain": { "type": "string" },
-        "sub_domain": { "type": "string" },
+        "domain": {
+          "type": "string"
+        },
+        "sub_domain": {
+          "type": "string"
+        },
         "tags": {
           "type": "array",
-          "items": { "type": "string" }
+          "items": {
+            "type": "string"
+          }
         },
-        "short_description": { "type": "string", "maxLength": 300 },
-        "evaluation_trigger": { "type": "string" },
+        "short_description": {
+          "type": "string",
+          "maxLength": 300
+        },
+        "evaluation_trigger": {
+          "type": "string"
+        },
         "input_contract": {
           "type": "object",
           "description": "JSON Schema validating incoming task arguments or payload."
@@ -75,57 +104,252 @@
     },
     "cognitive_runtime": {
       "type": "object",
-      "required": ["persona", "success_criteria"],
+      "required": [
+        "persona",
+        "success_criteria"
+      ],
       "additionalProperties": false,
       "properties": {
         "driver": {
           "type": "string",
-          "enum": ["Driver.LangGraph", "Driver.WasmSandbox", "Driver.NativeAsync", "Driver.RemoteModel"],
-          "default": "Driver.LangGraph",
-          "description": "Preferred Cognitive Driver Interface (CDI) runtime driver."
+          "enum": [
+            "Driver.LangGraph"
+          ],
+          "default": "Driver.LangGraph"
         },
-        "persona": { "type": "string" },
-        "success_criteria": { "type": "string" },
+        "persona": {
+          "type": "string",
+          "minLength": 1
+        },
+        "success_criteria": {
+          "type": "string",
+          "minLength": 1
+        },
         "memory_policy": {
           "type": "string",
-          "enum": ["CVM_LRU_PAGING", "FULL_CONTEXT", "EPHEMERAL_STREAM"],
-          "default": "CVM_LRU_PAGING"
+          "enum": [
+            "NATIVE",
+            "EPHEMERAL_STREAM"
+          ],
+          "default": "NATIVE"
         },
         "checkpoint_policy": {
           "type": "string",
-          "enum": ["ON_EVENT", "ON_STEP", "DISABLED"],
+          "enum": [
+            "ON_STEP",
+            "DISABLED"
+          ],
           "default": "ON_STEP"
         }
       }
     },
     "requirements": {
       "type": "object",
-      "required": ["providers"],
+      "required": [
+        "providers"
+      ],
       "additionalProperties": false,
       "properties": {
         "providers": {
           "type": "array",
+          "maxItems": 64,
           "items": {
-            "type": "object",
-            "required": ["type", "id"],
-            "properties": {
-              "type": {
-                "type": "string",
-                "enum": ["mcp", "credential", "skill", "sub_agent", "security", "storage_adapter", "custom_plugin"]
+            "oneOf": [
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "type",
+                  "id",
+                  "transport"
+                ],
+                "properties": {
+                  "type": {
+                    "const": "mcp"
+                  },
+                  "id": {
+                    "type": "string",
+                    "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$"
+                  },
+                  "transport": {
+                    "enum": [
+                      "stdio",
+                      "sse",
+                      "http"
+                    ]
+                  },
+                  "command": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "args": {
+                    "type": "array",
+                    "maxItems": 128,
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  "image": {
+                    "type": "string",
+                    "pattern": "^[a-zA-Z0-9./:_-]+@sha256:[a-f0-9]{64}$"
+                  },
+                  "uri": {
+                    "type": "string",
+                    "pattern": "^https?://"
+                  },
+                  "required_tools": {
+                    "type": "array",
+                    "uniqueItems": true,
+                    "items": {
+                      "type": "string",
+                      "minLength": 1
+                    }
+                  },
+                  "allowed_domains": {
+                    "type": "array",
+                    "uniqueItems": true,
+                    "items": {
+                      "type": "string",
+                      "minLength": 1
+                    }
+                  },
+                  "credential_bindings": {
+                    "type": "object",
+                    "propertyNames": {
+                      "pattern": "^[A-Z][A-Z0-9_]*$"
+                    },
+                    "additionalProperties": {
+                      "type": "string",
+                      "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$"
+                    }
+                  }
+                },
+                "oneOf": [
+                  {
+                    "properties": {
+                      "transport": {
+                        "const": "stdio"
+                      }
+                    },
+                    "oneOf": [
+                      {
+                        "required": [
+                          "command"
+                        ],
+                        "not": {
+                          "required": [
+                            "image"
+                          ]
+                        }
+                      },
+                      {
+                        "required": [
+                          "image"
+                        ],
+                        "not": {
+                          "required": [
+                            "command"
+                          ]
+                        }
+                      }
+                    ],
+                    "not": {
+                      "required": [
+                        "uri"
+                      ]
+                    }
+                  },
+                  {
+                    "properties": {
+                      "transport": {
+                        "enum": [
+                          "sse",
+                          "http"
+                        ]
+                      }
+                    },
+                    "required": [
+                      "uri"
+                    ],
+                    "not": {
+                      "anyOf": [
+                        {
+                          "required": [
+                            "command"
+                          ]
+                        },
+                        {
+                          "required": [
+                            "image"
+                          ]
+                        }
+                      ]
+                    }
+                  }
+                ]
               },
-              "id": { "type": "string" },
-              "transport": { "type": "string", "enum": ["stdio", "sse"] },
-              "command": { "type": "string" },
-              "args": { "type": "array", "items": { "type": "string" } },
-              "uri": { "type": "string" },
-              "required_tools": { "type": "array", "items": { "type": "string" } },
-              "kind": { "type": "string" },
-              "fallback_action": { "type": "string" },
-              "isolation": { "type": "string" },
-              "allowed_domains": { "type": "array", "items": { "type": "string" } },
-              "agent_id": { "type": "string" },
-              "delegation_purpose": { "type": "string" }
-            }
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "type",
+                  "id"
+                ],
+                "properties": {
+                  "type": {
+                    "const": "credential"
+                  },
+                  "id": {
+                    "type": "string",
+                    "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$"
+                  },
+                  "kind": {
+                    "enum": [
+                      "credential",
+                      "api_key",
+                      "connection_string",
+                      "bearer_token",
+                      "password"
+                    ]
+                  },
+                  "fallback_action": {
+                    "enum": [
+                      "prompt_user"
+                    ]
+                  }
+                }
+              },
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "type",
+                  "id",
+                  "agent_id"
+                ],
+                "properties": {
+                  "type": {
+                    "const": "sub_agent"
+                  },
+                  "id": {
+                    "type": "string",
+                    "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$"
+                  },
+                  "agent_id": {
+                    "type": "string",
+                    "pattern": "^[a-z0-9][a-z0-9_-]{0,127}$"
+                  },
+                  "agent_sha256": {
+                    "type": "string",
+                    "pattern": "^[a-f0-9]{64}$"
+                  },
+                  "delegation_purpose": {
+                    "type": "string",
+                    "minLength": 1
+                  }
+                }
+              }
+            ]
           }
         }
       }
@@ -133,23 +357,55 @@
     "swarm_topology": {
       "type": "object",
       "additionalProperties": false,
+      "required": [
+        "pattern"
+      ],
       "properties": {
         "pattern": {
-          "type": "string",
-          "enum": ["hierarchical", "pipeline", "mesh_consensus", "pub_sub"],
-          "default": "hierarchical"
-        },
-        "consensus_threshold": { "type": "number", "minimum": 0.0, "maximum": 1.0 },
-        "routing_key": { "type": "string" }
+          "enum": [
+            "hierarchical"
+          ]
+        }
       }
     },
     "observability": {
       "type": "object",
       "additionalProperties": false,
       "properties": {
-        "trace_level": { "type": "string", "enum": ["debug", "info", "warn", "error"] },
-        "cost_limit_usd": { "type": "number" },
-        "max_execution_steps": { "type": "integer" }
+        "cost_limit_usd": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "max_execution_steps": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100000
+        },
+        "max_model_calls": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100000
+        },
+        "max_output_tokens": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100000
+        },
+        "input_price_per_million": {
+          "type": "number",
+          "minimum": 0
+        },
+        "output_price_per_million": {
+          "type": "number",
+          "minimum": 0
+        }
+      },
+      "dependencies": {
+        "cost_limit_usd": [
+          "max_output_tokens",
+          "input_price_per_million",
+          "output_price_per_million"
+        ]
       }
     }
   }

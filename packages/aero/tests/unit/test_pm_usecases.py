@@ -1,27 +1,31 @@
-"""Unit tests for PM Usecase User Flows (init, history, vault check, workflow list)."""
+"""Small CLI user flows with isolated state and deterministic credential checks."""
 
-import pytest
-import shutil
-from pathlib import Path
+import json
+
 from aero.presentation.cli import main
 
-def test_pm_init_command(monkeypatch):
-    tmp_dir = Path.cwd() / ".test_tmp_init"
-    tmp_dir.mkdir(exist_ok=True)
-    try:
-        monkeypatch.chdir(tmp_dir)
-        exit_code = main(["init", "my-test-agent"])
-        assert exit_code == 0
-        assert (tmp_dir / "my-test-agent.agent.json").exists()
-    finally:
-        if tmp_dir.exists():
-            shutil.rmtree(tmp_dir, ignore_errors=True)
+
+def test_pm_init_command(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    assert main(["init", "my-test-agent"]) == 0
+    assert (tmp_path / "my-test-agent.agent.json").exists()
+
 
 def test_pm_history_command():
-    exit_code = main(["history"])
-    assert exit_code == 0
+    assert main(["history"]) == 0
 
-def test_pm_vault_check_command():
-    exit_code = main(["vault", "check", "registry/agents/postgres-performance-tuner.json"])
-    # May fail if DB_CONNECT_STRING not in env, but exit code handled cleanly
-    assert exit_code in (0, 20)
+
+def test_pm_vault_check_command(tmp_path, monkeypatch, capsys):
+    source = tmp_path / "credentials.agent.json"
+    assert main(["init", "credentials-agent", "--output", str(source)]) == 0
+    data = json.loads(source.read_text())
+    data["requirements"]["providers"] = [
+        {"type": "credential", "id": "EXPLICIT_REPORT_KEY"}
+    ]
+    source.write_text(json.dumps(data))
+    monkeypatch.delenv("EXPLICIT_REPORT_KEY", raising=False)
+    assert main(["vault", "check", str(source)]) == 20
+    monkeypatch.setenv("EXPLICIT_REPORT_KEY", "synthetic-report-key")
+    assert main(["vault", "check", str(source)]) == 0
+    captured = capsys.readouterr()
+    assert "synthetic-report-key" not in captured.out + captured.err

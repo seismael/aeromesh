@@ -36,6 +36,7 @@ AGENT = (
 
 # --- Parser / DAG validation ---
 
+
 def test_valid_workflow_parses():
     wf = WorkflowParser().validate_dict(VALID)
     assert wf.identity.id == "wf"
@@ -73,6 +74,7 @@ def test_unknown_output_rejected():
 
 # --- Templating ---
 
+
 def test_render_intent_injects_upstream_results():
     assert render_intent("use {a}", {"a": "X"}) == "use X"
     assert render_intent("no placeholders", {}) == "no placeholders"
@@ -80,6 +82,7 @@ def test_render_intent_injects_upstream_results():
 
 
 # --- Execution ---
+
 
 class EchoChatModel(BaseChatModel):
     """Test double: records each intent and echoes it back (test code only)."""
@@ -95,7 +98,9 @@ class EchoChatModel(BaseChatModel):
         content = getattr(last, "content", str(last))
         EchoChatModel.calls.append(content)
         return ChatResult(
-            generations=[ChatGeneration(message=AIMessage(content=f"RESULT[{content}]"))]
+            generations=[
+                ChatGeneration(message=AIMessage(content=f"RESULT[{content}]"))
+            ]
         )
 
     def bind_tools(self, tools, **kwargs):
@@ -130,16 +135,21 @@ def test_workflow_execution_and_output_selection(tmp_path):
         }
     )
 
-    driver = WorkflowExecutionDriver(workflow, model=EchoChatModel())
+    driver = WorkflowExecutionDriver(workflow, model=EchoChatModel(), development=True)
     result = driver.execute("root")
 
     assert set(result["outputs"].keys()) == {"a", "b"}
     assert result["verified_result"] == result["outputs"]["b"]
     # Step b's intent was templated with step a's result before running.
-    assert any("use RESULT[first task]" in c for c in EchoChatModel.calls)
+    assert any(
+        json.loads(c)["task"].startswith("use RESULT[")
+        and json.loads(c)["workflow_input"] == "root"
+        for c in EchoChatModel.calls
+    )
 
 
 # --- Recursive trust ---
+
 
 def test_verify_workflow_references_rejects_untrusted_agent(tmp_path):
     _install_agent("agent-a")  # resolvable, but no trusted key in the workspace
@@ -152,7 +162,7 @@ def test_verify_workflow_references_rejects_untrusted_agent(tmp_path):
     )
     ok, reason = trust.verify_workflow_references(workflow)
     assert ok is False
-    assert "trusted key" in reason
+    assert "trusted public key" in reason
 
 
 def test_verify_workflow_references_rejects_missing_agent():
